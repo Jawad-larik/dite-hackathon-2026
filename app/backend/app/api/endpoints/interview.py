@@ -62,7 +62,7 @@ def list_sessions(
     
     result = []
     for s in sessions:
-        ans_count = len(s.answers)
+        ans_count = db.query(DBAnswer).filter(DBAnswer.session_id == s.id).count()
         result.append(SessionSummaryItem(
             id=s.id,
             session_id=s.id,
