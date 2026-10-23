@@ -1,12 +1,14 @@
 import React from 'react';
-import { Bot, Activity, ShieldCheck, Video, Mic, RefreshCw } from 'lucide-react';
+import { Bot, Activity, ShieldCheck, Video, Mic, RefreshCw, LogOut, User as UserIcon } from 'lucide-react';
 import { useSessionStore } from '../../store/sessionStore';
 
 interface HeaderProps {
   onReset?: () => void;
-  onNavigate?: (view: 'home' | 'history') => void;
+  onNavigate?: (view: 'home' | 'history' | 'login') => void;
   currentView?: string;
   inSession?: boolean;
+  user?: { id: string; email: string } | null;
+  onLogout?: () => void;
 }
 
 /**
@@ -14,7 +16,14 @@ interface HeaderProps {
  * Studio-grade executive cockpit header with live system readiness indicators:
  * Webcam, Microphone, Whisper STT, and LLM Evaluator telemetry.
  */
-export const Header: React.FC<HeaderProps> = ({ onReset, onNavigate, currentView = 'home', inSession }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  onReset, 
+  onNavigate, 
+  currentView = 'home', 
+  inSession,
+  user,
+  onLogout
+}) => {
   const { hardwareStatus } = useSessionStore();
 
   return (
@@ -162,16 +171,45 @@ export const Header: React.FC<HeaderProps> = ({ onReset, onNavigate, currentView
           </div>
         </div>
 
-        {/* Exit Session Action (When active) */}
-        {inSession && onReset && (
-          <button
-            onClick={onReset}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border-default hover:border-coral-alert/50 bg-surface-ground text-xs font-mono text-text-secondary hover:text-coral-alert transition-all focus:outline-none focus:ring-2 focus:ring-coral-alert/50"
-          >
-            <RefreshCw className="w-3.5 h-3.5 stroke-[1.5]" />
-            <span>ABORT</span>
-          </button>
-        )}
+        {/* User Identity & Auth Actions */}
+        <div className="flex items-center gap-2">
+          {user ? (
+            <div className="flex items-center gap-2">
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-surface-ground border border-border-subtle text-xs font-mono text-text-secondary">
+                <UserIcon className="w-3.5 h-3.5 text-amber-signal" />
+                <span className="max-w-[140px] truncate">{user.email}</span>
+              </span>
+              <button
+                type="button"
+                onClick={onLogout}
+                title="Sign out of candidate session"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-border-default hover:border-coral-alert/50 bg-surface-ground text-xs font-mono text-text-secondary hover:text-coral-alert transition-all focus:outline-none focus:ring-2 focus:ring-coral-alert/50"
+              >
+                <LogOut className="w-3.5 h-3.5 stroke-[1.5]" />
+                <span className="hidden md:inline">SIGN OUT</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onNavigate?.('login')}
+              className="px-3 py-1.5 rounded-md bg-amber-signal/15 text-amber-signal border border-amber-500/40 text-xs font-mono font-semibold hover:bg-amber-signal/25 transition-all"
+            >
+              SIGN IN
+            </button>
+          )}
+
+          {/* Exit Session Action (When active) */}
+          {inSession && onReset && (
+            <button
+              onClick={onReset}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border-default hover:border-coral-alert/50 bg-surface-ground text-xs font-mono text-text-secondary hover:text-coral-alert transition-all focus:outline-none focus:ring-2 focus:ring-coral-alert/50"
+            >
+              <RefreshCw className="w-3.5 h-3.5 stroke-[1.5]" />
+              <span>ABORT</span>
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );

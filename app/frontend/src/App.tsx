@@ -1,8 +1,16 @@
-import React, { useState, Suspense } from 'react';
+import React, { useState, Suspense, useEffect } from 'react';
 import { Header } from './components/layout/Header';
 import { HomePage } from './pages/HomePage';
+import { AuthPage } from './pages/AuthPage';
 import type { Question } from './types';
-import { startSession, fetchSessionQuestions } from './api/client';
+import {
+  startSession,
+  fetchSessionQuestions,
+  getAuthToken,
+  getStoredUser,
+  clearAuthToken,
+  apiGetMe
+} from './api/client';
 import { useSessionStore } from './store/sessionStore';
 import { CockpitLoadingSkeleton } from './components/ui/CockpitLoadingSkeleton';
 
@@ -53,15 +61,21 @@ const FALLBACK_QUESTIONS: Question[] = [
 ];
 
 export const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'home' | 'interview' | 'report' | 'history'>(() => {
+  const [user, setUser] = useState<{ id: string; email: string } | null>(() => getStoredUser());
+  const [authToken, setAuthTokenState] = useState<string | null>(() => getAuthToken());
+
+  const [currentView, setCurrentView] = useState<'home' | 'interview' | 'report' | 'history' | 'login' | 'signup'>(() => {
     if (typeof window !== 'undefined') {
+      const token = getAuthToken();
       const params = new URLSearchParams(window.location.search);
       const view = params.get('view');
+      if (view === 'login' || view === 'signup') return view;
+      if (!token) return 'login';
       if (view === 'interview') return 'interview';
       if (view === 'report') return 'report';
       if (view === 'history') return 'history';
     }
-    return 'home';
+    return getAuthToken() ? 'home' : 'login';
   });
 
   const [showProofHarness, setShowProofHarness] = useState<boolean>(() => {
@@ -102,6 +116,53 @@ export const App: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
+  // Enforce route guard: unauthenticated users redirect to login
+  useEffect(() => {
+    if (!authToken && currentView !== 'login' && currentView !== 'signup') {
+      navigateToView('login');
+    }
+  }, [authToken, currentView]);
+
+  // Handle 401 unauthorized broadcasts from api/client
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      clearAuthToken();
+      setAuthTokenState(null);
+      setUser(null);
+      navigateToView('login');
+    };
+
+    window.addEventListener('auth-unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth-unauthorized', handleUnauthorized);
+  }, []);
+
+  // Fetch current user details if token exists but user profile is null
+  useEffect(() => {
+    if (authToken && !user) {
+      apiGetMe()
+        .then((userData) => setUser(userData))
+        .catch(() => {
+          clearAuthToken();
+          setAuthTokenState(null);
+          setUser(null);
+          navigateToView('login');
+        });
+    }
+  }, [authToken, user]);
+
+  const handleAuthSuccess = (userData: { id: string; email: string }, token: string) => {
+    setUser(userData);
+    setAuthTokenState(token);
+    navigateToView('home');
+  };
+
+  const handleLogout = () => {
+    clearAuthToken();
+    setUser(null);
+    setAuthTokenState(null);
+    navigateToView('login');
+  };
+
   const handleStartSession = async (
     roleId: string,
     interviewType: string,
@@ -125,9 +186,9 @@ export const App: React.FC = () => {
         language,
         questions: sessionQuestions,
       });
-      setCurrentView('interview');
+      navigateToView('interview');
     } catch (err) {
-      console.warn("Backend unavailable, initializing diagnostic simulation session:", err);
+      console.warn("Backend error starting session, falling back to cockpit simulation:", err);
       const fallbackTitle =
         roleId === 'data_scientist'
           ? 'Lead Machine Learning Systems Engineer'
@@ -146,17 +207,20 @@ export const App: React.FC = () => {
         language,
         questions: FALLBACK_QUESTIONS,
       });
-      setCurrentView('interview');
+      navigateToView('interview');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleCompleteSession = () => {
-    setCurrentView('report');
+    navigateToView('report');
   };
 
-  const navigateToView = (view: 'home' | 'interview' | 'report' | 'history') => {
+  const navigateToView = (view: 'home' | 'interview' | 'report' | 'history' | 'login' | 'signup') => {
+    if (!getAuthToken() && view !== 'login' && view !== 'signup') {
+      view = 'login';
+    }
     setCurrentView(view);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
@@ -169,15 +233,25 @@ export const App: React.FC = () => {
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handlePopState = () => {
       if (typeof window === 'undefined') return;
       const params = new URLSearchParams(window.location.search);
       const view = params.get('view');
-      if (view === 'interview') setCurrentView('interview');
-      else if (view === 'report') setCurrentView('report');
-      else if (view === 'history') setCurrentView('history');
-      else setCurrentView('home');
+      const token = getAuthToken();
+      if (!token) {
+        setCurrentView('login');
+      } else if (view === 'interview') {
+        setCurrentView('interview');
+      } else if (view === 'report') {
+        setCurrentView('report');
+      } else if (view === 'history') {
+        setCurrentView('history');
+      } else if (view === 'login' || view === 'signup') {
+        setCurrentView(view);
+      } else {
+        setCurrentView('home');
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -215,12 +289,21 @@ export const App: React.FC = () => {
         <>
           <Header
             onReset={handleReset}
-            onNavigate={(view) => navigateToView(view)}
+            onNavigate={(view) => navigateToView(view as any)}
             currentView={currentView}
             inSession={currentView === 'interview' || currentView === 'report'}
+            user={user}
+            onLogout={handleLogout}
           />
 
           <main className="flex-1">
+            {(currentView === 'login' || currentView === 'signup') && (
+              <AuthPage
+                initialMode={currentView === 'signup' ? 'signup' : 'login'}
+                onAuthSuccess={handleAuthSuccess}
+              />
+            )}
+
             {currentView === 'home' && (
               <HomePage
                 onStartSession={handleStartSession}
@@ -269,4 +352,3 @@ export const App: React.FC = () => {
 };
 
 export default App;
-
