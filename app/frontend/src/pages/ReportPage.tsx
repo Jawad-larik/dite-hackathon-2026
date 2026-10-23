@@ -218,17 +218,19 @@ export const ReportPage: React.FC<ReportPageProps> = ({ sessionId = 'sess-sim-ex
 
     try {
       const pdfUrl = getDownloadPdfUrl(sessionId);
-      const res = await fetch(pdfUrl, { method: 'HEAD' });
-      if (res.ok) {
-        window.location.href = pdfUrl;
-      } else {
-        throw new Error('PDF service endpoint offline');
-      }
-    } catch {
-      setPdfFallbackMessage('PDF export available in Phase 5');
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = `interview_dossier_${sessionId}.pdf`;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.warn('PDF export error:', err);
+      setPdfFallbackMessage('Failed to download PDF dossier. Please retry.');
       setTimeout(() => setPdfFallbackMessage(null), 4000);
     } finally {
-      setIsExportingPdf(false);
+      setTimeout(() => setIsExportingPdf(false), 800);
     }
   };
 

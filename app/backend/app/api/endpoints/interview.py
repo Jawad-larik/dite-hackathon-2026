@@ -54,20 +54,23 @@ def list_sessions(limit: int = 20, offset: int = 0, db: Session = Depends(get_db
     
     result = []
     for s in sessions:
-        ans_count = len(s.answers)
+        try:
+            ans_count = db.query(DBAnswer).filter(DBAnswer.session_id == s.id).count()
+        except Exception:
+            ans_count = len(getattr(s, "answers", []))
         result.append(SessionSummaryItem(
             id=s.id,
             session_id=s.id,
             role_id=s.role_id,
             role_title=s.role_title,
             created_at=s.created_at.strftime("%Y-%m-%d %H:%M") if hasattr(s.created_at, "strftime") else str(s.created_at or ""),
-            overall_score=round(s.overall_score, 1),
-            content_score=round(s.content_score, 1),
-            clarity_score=round(s.clarity_score, 1),
-            confidence_score=round(s.confidence_score, 1),
-            composure_score=round(s.confidence_score, 1),
+            overall_score=round(s.overall_score or 0.0, 1),
+            content_score=round(s.content_score or 0.0, 1),
+            clarity_score=round(s.clarity_score or 0.0, 1),
+            confidence_score=round(s.confidence_score or 0.0, 1),
+            composure_score=round(s.confidence_score or 0.0, 1),
             status=s.status,
-            is_demo=bool(s.is_demo),
+            is_demo=bool(getattr(s, "is_demo", False)),
             total_questions=ans_count
         ))
         

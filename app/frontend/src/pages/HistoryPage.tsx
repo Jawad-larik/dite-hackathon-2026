@@ -11,6 +11,8 @@ import {
   PlusCircle,
   RotateCcw,
   Sparkles,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import gsap from 'gsap';
 import { useSessionStore } from '../store/sessionStore';
@@ -18,7 +20,7 @@ import { getReadinessTier, type SessionReport } from '../types';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { HistoricalTrendlineChart } from '../components/history/HistoricalTrendlineChart';
 import { QuestionSparkline } from '../components/history/QuestionSparkline';
-import { fetchHistoricalSessions } from '../api/client';
+import { fetchHistoricalSessions, getDownloadPdfUrl } from '../api/client';
 
 interface HistoryPageProps {
   onSelectSession: (sessionId: string) => void;
@@ -43,6 +45,26 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
   const prefersReduced = useReducedMotion();
   const cardsContainerRef = useRef<HTMLDivElement | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleExportSessionPdf = (e: React.MouseEvent, sessId: string) => {
+    e.stopPropagation();
+    setDownloadingId(sessId);
+    try {
+      const pdfUrl = getDownloadPdfUrl(sessId);
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = `interview_dossier_${sessId}.pdf`;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to export dossier PDF:', err);
+    } finally {
+      setTimeout(() => setDownloadingId(null), 1200);
+    }
+  };
 
   // Fetch backend sessions on mount (Option A: Backend-driven History with local cache fallback)
   useEffect(() => {
@@ -448,14 +470,31 @@ export const HistoryPage: React.FC<HistoryPageProps> = ({
                         </div>
                       </div>
 
-                      {/* Card Footer: Inspect Dossier Link */}
-                      <div className="pt-4 mt-3 flex items-center justify-between border-t border-border-subtle/50 text-xs font-mono">
+                      {/* Card Footer: Inspect & Export Dossier Links */}
+                      <div className="pt-4 mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border-subtle/50 text-xs font-mono">
                         <span className="text-text-tertiary">
                           {session.total_questions || session.per_question_results?.length || 3} questions evaluated
                         </span>
-                        <div className="flex items-center gap-1.5 text-amber-signal group-hover:translate-x-1 transition-transform font-semibold">
-                          <span>INSPECT DOSSIER</span>
-                          <ArrowRight className="w-3.5 h-3.5 stroke-[2]" />
+                        <div className="flex items-center gap-2.5">
+                          <button
+                            type="button"
+                            onClick={(e) => handleExportSessionPdf(e, session.session_id || (session as unknown as { id: string }).id)}
+                            disabled={downloadingId === (session.session_id || (session as unknown as { id: string }).id)}
+                            title="Export PDF evaluation dossier"
+                            className="px-2.5 py-1 rounded-lg bg-surface-ground hover:bg-surface-elevated text-text-secondary hover:text-amber-signal border border-border-subtle hover:border-amber-signal/40 flex items-center gap-1.5 transition-all cursor-pointer font-semibold shadow-xs disabled:opacity-50"
+                          >
+                            {downloadingId === (session.session_id || (session as unknown as { id: string }).id) ? (
+                              <Loader2 className="w-3.5 h-3.5 text-amber-signal animate-spin" />
+                            ) : (
+                              <Download className="w-3.5 h-3.5 text-amber-signal" />
+                            )}
+                            <span>{downloadingId === (session.session_id || (session as unknown as { id: string }).id) ? 'EXPORTING...' : 'EXPORT DOSSIER'}</span>
+                          </button>
+
+                          <div className="flex items-center gap-1 text-amber-signal group-hover:translate-x-1 transition-transform font-semibold">
+                            <span>INSPECT DOSSIER</span>
+                            <ArrowRight className="w-3.5 h-3.5 stroke-[2]" />
+                          </div>
                         </div>
                       </div>
                     </article>
