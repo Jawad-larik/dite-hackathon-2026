@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Camera, Mic, CheckCircle2, ArrowRight, ShieldCheck, Activity, RefreshCw } from 'lucide-react';
+import { Camera, Mic, CheckCircle2, ArrowRight, ShieldCheck, Activity, RefreshCw, AlertCircle } from 'lucide-react';
 import { ReticleOverlay } from '../ui/ReticleOverlay';
 import { AudioWaveformCanvas } from '../ui/AudioWaveformCanvas';
 import { useSessionStore } from '../../store/sessionStore';
@@ -9,6 +9,8 @@ interface HardwareDiagnosticsConsoleProps {
   onEnterRoom: () => void;
   isLoading: boolean;
   selectedRoleTitle: string;
+  isBeginDisabled?: boolean;
+  disabledReason?: string | null;
 }
 
 /**
@@ -20,6 +22,8 @@ export const HardwareDiagnosticsConsole: React.FC<HardwareDiagnosticsConsoleProp
   onEnterRoom,
   isLoading,
   selectedRoleTitle,
+  isBeginDisabled,
+  disabledReason,
 }) => {
   const { hardwareStatus, setHardwareStatus } = useSessionStore();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -249,9 +253,9 @@ export const HardwareDiagnosticsConsole: React.FC<HardwareDiagnosticsConsoleProp
         <button
           type="button"
           onClick={onEnterRoom}
-          disabled={!canProceed || isLoading}
+          disabled={!canProceed || isLoading || Boolean(isBeginDisabled)}
           className={`w-full py-4 px-6 rounded-xl font-mono font-bold text-sm tracking-wide uppercase transition-all flex items-center justify-center gap-2.5 select-none focus:outline-none focus:ring-2 focus:ring-amber-signal/70 ${
-            canProceed && !isLoading
+            canProceed && !isLoading && !isBeginDisabled
               ? 'bg-amber-signal hover:bg-amber-400 text-surface-ground shadow-[0_0_20px_rgba(245,158,11,0.25)] cursor-pointer active:scale-[0.99]'
               : 'bg-surface-elevated text-text-tertiary border border-border-subtle cursor-not-allowed'
           }`}
@@ -263,11 +267,18 @@ export const HardwareDiagnosticsConsole: React.FC<HardwareDiagnosticsConsoleProp
             </>
           ) : (
             <>
-              <span>ENTER INTERVIEW ROOM</span>
+              <span>BEGIN INTERVIEW</span>
               <ArrowRight className="w-4 h-4 stroke-[1.5]" />
             </>
           )}
         </button>
+
+        {isBeginDisabled && disabledReason && (
+          <p className="text-[11px] font-mono text-amber-signal text-center mt-2.5 flex items-center justify-center gap-1.5">
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>{disabledReason}</span>
+          </p>
+        )}
       </div>
     </aside>
   );

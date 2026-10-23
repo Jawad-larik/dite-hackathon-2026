@@ -53,7 +53,10 @@ const ROLES = [
  * - Right column: Live Hardware Diagnostics Console with camera reticle & real-time mic visualizer
  */
 export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading }) => {
+  const [intakeMode, setIntakeMode] = useState<'role' | 'jd_resume'>('role');
   const [selectedRoleId, setSelectedRoleId] = useState<string>('software_engineer');
+  const [questionCount, setQuestionCount] = useState<number>(5);
+  const [language, setLanguage] = useState<string>('en');
   const [jdText, setJdText] = useState<string>('');
   const [resumeText, setResumeText] = useState<string>('');
 
@@ -65,6 +68,18 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading })
   const [resumeStatus, setResumeStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const { selectRole } = useSessionStore();
+
+  const isJdMode = intakeMode === 'jd_resume';
+  const hasJdOrResume = Boolean(jdText.trim() || resumeText.trim());
+  const isRoleSelected = Boolean(selectedRoleId);
+
+  const isBeginDisabled = !isRoleSelected || (isJdMode && !hasJdOrResume);
+
+  const disabledReason = !isRoleSelected
+    ? 'Select a target role dossier to continue'
+    : isJdMode && !hasJdOrResume
+    ? 'Add a job description or resume to continue'
+    : null;
 
   const handleFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
@@ -130,11 +145,14 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading })
   };
 
   const handleEnterRoom = () => {
+    if (isBeginDisabled) return;
     const selected = ROLES.find((r) => r.id === selectedRoleId);
     if (selected) {
       selectRole(selected.id, selected.title);
     }
-    onStartSession(selectedRoleId, 'all', 'en', jdText, resumeText);
+    const finalJd = intakeMode === 'jd_resume' ? jdText.trim() : '';
+    const finalResume = intakeMode === 'jd_resume' ? resumeText.trim() : '';
+    onStartSession(selectedRoleId, 'all', language, finalJd, finalResume);
   };
 
   const selectedRole = ROLES.find((r) => r.id === selectedRoleId) || ROLES[0];
@@ -162,6 +180,84 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading })
                 High-fidelity multimodal interview training. Evaluates technical depth, vocal pacing,
                 and physical composure via real-time local vision landmarker and Whisper speech pipeline.
               </p>
+            </div>
+
+            {/* Two-Option Mode Selector & Session Parameters */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-surface-panel/90 border border-border-subtle space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border-subtle/50 pb-3">
+                <div className="space-y-0.5">
+                  <span className="font-mono text-xs uppercase tracking-wider text-text-primary font-semibold block">
+                    INTAKE CALIBRATION MODE
+                  </span>
+                  <span className="font-mono text-[11px] text-text-tertiary">
+                    {intakeMode === 'role'
+                      ? 'Benchmark role dossier evaluation'
+                      : 'Adaptive probing driven by JD & Resume'}
+                  </span>
+                </div>
+
+                {/* Two-Option Mode Selector */}
+                <div
+                  role="tablist"
+                  aria-label="Interview intake mode"
+                  className="inline-flex p-1 rounded-xl bg-surface-ground border border-border-subtle gap-1 self-start sm:self-auto"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={intakeMode === 'role'}
+                    onClick={() => setIntakeMode('role')}
+                    className={`px-4 py-2 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer ${
+                      intakeMode === 'role'
+                        ? 'bg-surface-panel text-amber-signal border border-amber-500/40 shadow-sm'
+                        : 'text-text-secondary hover:text-text-primary border border-transparent'
+                    }`}
+                  >
+                    Role-based
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={intakeMode === 'jd_resume'}
+                    onClick={() => setIntakeMode('jd_resume')}
+                    className={`px-4 py-2 rounded-lg text-xs font-mono font-semibold transition-all cursor-pointer ${
+                      intakeMode === 'jd_resume'
+                        ? 'bg-surface-panel text-amber-signal border border-amber-500/40 shadow-sm'
+                        : 'text-text-secondary hover:text-text-primary border border-transparent'
+                    }`}
+                  >
+                    JD + Resume
+                  </button>
+                </div>
+              </div>
+
+              {/* Question Limit + Language Settings */}
+              <div className="flex flex-wrap items-center justify-between gap-4 text-xs font-mono pt-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-text-tertiary">QUESTION LIMIT:</span>
+                  <select
+                    value={questionCount}
+                    onChange={(e) => setQuestionCount(Number(e.target.value))}
+                    className="bg-surface-ground border border-border-subtle rounded-lg px-2.5 py-1 text-text-primary text-xs font-mono outline-none focus:border-amber-signal/60 cursor-pointer"
+                  >
+                    <option value={3}>3 Questions</option>
+                    <option value={5}>5 Questions (Standard)</option>
+                    <option value={10}>10 Questions (Comprehensive)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-text-tertiary">LANGUAGE:</span>
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    className="bg-surface-ground border border-border-subtle rounded-lg px-2.5 py-1 text-text-primary text-xs font-mono outline-none focus:border-amber-signal/60 cursor-pointer"
+                  >
+                    <option value="en">English (EN)</option>
+                    <option value="ur">Urdu (UR)</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             {/* Role Dossiers Header */}
@@ -200,142 +296,144 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading })
               </div>
             </div>
 
-            {/* Optional JD & Resume Intake Section */}
-            <div className="p-5 rounded-2xl bg-surface-panel/90 border border-border-subtle space-y-4">
-              <div className="flex items-center justify-between border-b border-border-subtle/50 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-signal" />
-                  <span className="font-mono text-xs uppercase tracking-wider text-text-primary font-semibold">
-                    Dynamic Calibration (Optional)
+            {/* JD + Resume Intake Section: ONLY visible when intakeMode === 'jd_resume' */}
+            {intakeMode === 'jd_resume' && (
+              <div className="p-5 rounded-2xl bg-surface-panel/90 border border-border-subtle space-y-4 animate-fadeIn">
+                <div className="flex items-center justify-between border-b border-border-subtle/50 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-signal" />
+                    <span className="font-mono text-xs uppercase tracking-wider text-text-primary font-semibold">
+                      Target Calibration (At least 1 required)
+                    </span>
+                  </div>
+                  <span className="font-mono text-[10px] uppercase px-2 py-0.5 rounded bg-amber-subtle text-amber-signal border border-amber-500/30 font-semibold">
+                    JD + Resume Active
                   </span>
                 </div>
-                <span className="font-mono text-[10px] uppercase px-2 py-0.5 rounded bg-amber-subtle text-amber-signal border border-amber-500/30 font-semibold">
-                  JD + Resume Adaptive
-                </span>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* JD Input + Upload */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <label htmlFor="jd-input" className="flex items-center gap-1.5 text-xs font-mono text-text-secondary">
-                      <FileText className="w-3.5 h-3.5 text-amber-signal" />
-                      <span>Target Job Description</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => jdFileInputRef.current?.click()}
-                      disabled={jdUploading}
-                      className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-signal hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2 py-0.5 rounded transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {jdUploading ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>Extracting...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-3 h-3" />
-                          <span>Upload PDF (optional)</span>
-                        </>
-                      )}
-                    </button>
-                    <input
-                      ref={jdFileInputRef}
-                      type="file"
-                      accept=".pdf,application/pdf"
-                      className="hidden"
-                      onChange={(e) => handleFileUpload(e, 'jd')}
-                    />
-                  </div>
-                  <p className="text-[10px] font-mono text-text-tertiary">Text-based PDFs only. Image scans won't work.</p>
-
-                  <textarea
-                    id="jd-input"
-                    rows={3}
-                    value={jdText}
-                    onChange={(e) => setJdText(e.target.value)}
-                    placeholder="Paste job requirements or upload PDF above to generate tailored questions..."
-                    className="w-full text-xs font-mono bg-surface-ground/90 border border-border-subtle focus:border-amber-signal/60 rounded-xl p-3 text-text-primary placeholder:text-text-tertiary/60 outline-none transition-colors resize-none"
-                  />
-
-                  {jdStatus && (
-                    <div
-                      className={`text-[11px] font-mono flex items-center gap-1.5 pt-0.5 transition-all ${
-                        jdStatus.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
-                      }`}
-                    >
-                      {jdStatus.type === 'success' ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
-                      ) : (
-                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                      )}
-                      <span>{jdStatus.message}</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* JD Input + Upload */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label htmlFor="jd-input" className="flex items-center gap-1.5 text-xs font-mono text-text-secondary">
+                        <FileText className="w-3.5 h-3.5 text-amber-signal" />
+                        <span>Target Job Description</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => jdFileInputRef.current?.click()}
+                        disabled={jdUploading}
+                        className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-signal hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2 py-0.5 rounded transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        {jdUploading ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Extracting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3 h-3" />
+                            <span>Upload PDF (optional)</span>
+                          </>
+                        )}
+                      </button>
+                      <input
+                        ref={jdFileInputRef}
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        className="hidden"
+                        onChange={(e) => handleFileUpload(e, 'jd')}
+                      />
                     </div>
-                  )}
-                </div>
+                    <p className="text-[10px] font-mono text-text-tertiary">Text-based PDFs only. Image scans won't work.</p>
 
-                {/* Resume Input + Upload */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <label htmlFor="resume-input" className="flex items-center gap-1.5 text-xs font-mono text-text-secondary">
-                      <FileText className="w-3.5 h-3.5 text-mint-eval" />
-                      <span>Candidate Resume / Highlights</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => resumeFileInputRef.current?.click()}
-                      disabled={resumeUploading}
-                      className="inline-flex items-center gap-1 text-[11px] font-mono text-mint-eval hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-2 py-0.5 rounded transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      {resumeUploading ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          <span>Extracting...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-3 h-3" />
-                          <span>Upload PDF (optional)</span>
-                        </>
-                      )}
-                    </button>
-                    <input
-                      ref={resumeFileInputRef}
-                      type="file"
-                      accept=".pdf,application/pdf"
-                      className="hidden"
-                      onChange={(e) => handleFileUpload(e, 'resume')}
+                    <textarea
+                      id="jd-input"
+                      rows={3}
+                      value={jdText}
+                      onChange={(e) => setJdText(e.target.value)}
+                      placeholder="Paste job requirements or upload PDF above to generate tailored questions..."
+                      className="w-full text-xs font-mono bg-surface-ground/90 border border-border-subtle focus:border-amber-signal/60 rounded-xl p-3 text-text-primary placeholder:text-text-tertiary/60 outline-none transition-colors resize-none"
                     />
+
+                    {jdStatus && (
+                      <div
+                        className={`text-[11px] font-mono flex items-center gap-1.5 pt-0.5 transition-all ${
+                          jdStatus.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
+                        }`}
+                      >
+                        {jdStatus.type === 'success' ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                        )}
+                        <span>{jdStatus.message}</span>
+                      </div>
+                    )}
                   </div>
-                  <p className="text-[10px] font-mono text-text-tertiary">Text-based PDFs only. Image scans won't work.</p>
 
-                  <textarea
-                    id="resume-input"
-                    rows={3}
-                    value={resumeText}
-                    onChange={(e) => setResumeText(e.target.value)}
-                    placeholder="Paste candidate background or upload PDF above for tailored probing..."
-                    className="w-full text-xs font-mono bg-surface-ground/90 border border-border-subtle focus:border-mint-eval/60 rounded-xl p-3 text-text-primary placeholder:text-text-tertiary/60 outline-none transition-colors resize-none"
-                  />
-
-                  {resumeStatus && (
-                    <div
-                      className={`text-[11px] font-mono flex items-center gap-1.5 pt-0.5 transition-all ${
-                        resumeStatus.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
-                      }`}
-                    >
-                      {resumeStatus.type === 'success' ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
-                      ) : (
-                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                      )}
-                      <span>{resumeStatus.message}</span>
+                  {/* Resume Input + Upload */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label htmlFor="resume-input" className="flex items-center gap-1.5 text-xs font-mono text-text-secondary">
+                        <FileText className="w-3.5 h-3.5 text-mint-eval" />
+                        <span>Candidate Resume / Highlights</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => resumeFileInputRef.current?.click()}
+                        disabled={resumeUploading}
+                        className="inline-flex items-center gap-1 text-[11px] font-mono text-mint-eval hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-2 py-0.5 rounded transition-colors disabled:opacity-50 cursor-pointer"
+                      >
+                        {resumeUploading ? (
+                          <>
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                            <span>Extracting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3 h-3" />
+                            <span>Upload PDF (optional)</span>
+                          </>
+                        )}
+                      </button>
+                      <input
+                        ref={resumeFileInputRef}
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        className="hidden"
+                        onChange={(e) => handleFileUpload(e, 'resume')}
+                      />
                     </div>
-                  )}
+                    <p className="text-[10px] font-mono text-text-tertiary">Text-based PDFs only. Image scans won't work.</p>
+
+                    <textarea
+                      id="resume-input"
+                      rows={3}
+                      value={resumeText}
+                      onChange={(e) => setResumeText(e.target.value)}
+                      placeholder="Paste candidate background or upload PDF above for tailored probing..."
+                      className="w-full text-xs font-mono bg-surface-ground/90 border border-border-subtle focus:border-mint-eval/60 rounded-xl p-3 text-text-primary placeholder:text-text-tertiary/60 outline-none transition-colors resize-none"
+                    />
+
+                    {resumeStatus && (
+                      <div
+                        className={`text-[11px] font-mono flex items-center gap-1.5 pt-0.5 transition-all ${
+                          resumeStatus.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
+                        }`}
+                      >
+                        {resumeStatus.type === 'success' ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                        )}
+                        <span>{resumeStatus.message}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Architecture Telemetry Metrics Banner */}
             <div className="p-4 rounded-xl bg-surface-panel/60 border border-border-subtle flex flex-wrap items-center justify-between gap-4 font-mono text-xs text-text-tertiary">
@@ -360,6 +458,8 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading })
               selectedRoleTitle={selectedRole.title}
               isLoading={isLoading}
               onEnterRoom={handleEnterRoom}
+              isBeginDisabled={isBeginDisabled}
+              disabledReason={disabledReason}
             />
           </div>
         </div>
