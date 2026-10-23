@@ -34,9 +34,9 @@ submitted via Google Form before the deadline. Nothing else matters.
 
 ## 5. AI model policy
 - Primary chat/code: `cohere/north-mini-code:free`
-- Backup chat: `nvidia/nemotron-3.5-lightning:free`
+- Backup chat: `google/gemma-4-26b-a4b-it:free` (Fallbacks: `dots-studio/dots-3-note-preview:free`, `liquid/lfm-2.5-2.6b:free`)
 - Embeddings: `liquid/lfm-2.5-embedding-350m:free`
-- DO NOT use `google/gemma-4-31b-it:free` (429 rate-limited).
+- DO NOT use Nvidia Nemotron (blocked in Pakistan) or `google/gemma-4-31b-it:free` (429 rate-limited).
 - Every AI call wrapped in try/catch with offline fallback response.
 
 ## 6. Build order (deploy-first)
