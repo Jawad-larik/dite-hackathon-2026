@@ -11,5 +11,6 @@ pymongo>=4.6.0
 dnspython>=2.5.0
 python-multipart>=0.0.9
 pypdf>=4.0.0
+pdfplumber>=0.11.0
 
 

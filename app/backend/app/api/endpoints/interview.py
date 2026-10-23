@@ -4,6 +4,10 @@ import json
 import logging
 import asyncio
 import pypdf
+try:
+    import pdfplumber
+except ImportError:
+    pdfplumber = None
 from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Header
@@ -549,23 +553,43 @@ async def extract_pdf_text(
             detail="Max 2 MB"
         )
 
-    # In-memory extraction with fault-tolerant error wrapping
+    # In-memory extraction: pypdf first, pdfplumber fallback on exception
+    text_parts = []
+    pypdf_error = None
     try:
         buffer = io.BytesIO(contents)
         reader = pypdf.PdfReader(buffer)
-        text_parts = []
         for page in reader.pages:
             page_text = page.extract_text()
             if page_text:
                 text_parts.append(page_text)
         buffer.close()
     except Exception as parse_err:
-        logger.warning(f"PDF extraction parse failure: {parse_err}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to parse PDF document: {str(parse_err)}"
-        )
-    finally:
+        pypdf_error = parse_err
+        logger.warning(f"pypdf extraction failed ({parse_err}), falling back to pdfplumber...")
+
+    # Fallback to pdfplumber if pypdf failed
+    if pypdf_error:
+        try:
+            if pdfplumber is not None:
+                buffer = io.BytesIO(contents)
+                with pdfplumber.open(buffer) as pdf:
+                    for page in pdf.pages:
+                        plumber_text = page.extract_text()
+                        if plumber_text:
+                            text_parts.append(plumber_text)
+                buffer.close()
+            else:
+                raise pypdf_error
+        except Exception as fallback_err:
+            logger.warning(f"pdfplumber fallback parse failure: {fallback_err}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Failed to parse PDF document: {str(pypdf_error)}"
+            )
+        finally:
+            del contents
+    else:
         del contents
 
     extracted_text = "\n".join(text_parts).strip()
