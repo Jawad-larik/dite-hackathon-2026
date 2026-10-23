@@ -4,22 +4,119 @@ import sampleReportFixture from '../fixtures/report-sample.json';
 const rawBase = (import.meta.env.VITE_API_URL as string | undefined) || '';
 export const API_BASE = rawBase ? `${rawBase.replace(/\/$/, '')}/api` : '/api';
 
+export function getAuthToken(): string | null {
+  if (typeof localStorage === 'undefined') return null;
+  return localStorage.getItem('auth_token') || localStorage.getItem('token');
+}
+
+export function setAuthToken(token: string, user?: { id: string; email: string }) {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.setItem('auth_token', token);
+  localStorage.setItem('token', token);
+  if (user) {
+    localStorage.setItem('auth_user', JSON.stringify(user));
+  }
+}
+
+export function clearAuthToken() {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('token');
+  localStorage.removeItem('auth_user');
+}
+
+export function getStoredUser(): { id: string; email: string } | null {
+  if (typeof localStorage === 'undefined') return null;
+  const str = localStorage.getItem('auth_user');
+  if (!str) return null;
+  try {
+    return JSON.parse(str);
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Robust fetch with explicit timeout to prevent hanging on offline backends
+ * Robust fetch with explicit timeout to prevent hanging on offline backends,
+ * automatically injecting Bearer JWT token and handling 401 Unauthorized.
  */
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const token = getAuthToken();
+  const headers = new Headers(options.headers || {});
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
   try {
     const response = await fetch(url, {
       ...options,
+      headers,
       signal: controller.signal,
     });
+
+    if (response.status === 401) {
+      clearAuthToken();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth-unauthorized'));
+      }
+    }
+
     return response;
   } finally {
     clearTimeout(timer);
   }
 }
+
+/* =========================================================================
+   AUTH APIS
+========================================================================= */
+
+export async function apiSignup(email: string, password: string): Promise<{ token: string; user: { id: string; email: string } }> {
+  const res = await fetchWithTimeout(`${API_BASE}/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Registration failed' }));
+    throw new Error(err.detail || 'Registration failed');
+  }
+  const data = await res.json();
+  setAuthToken(data.token, data.user);
+  return data;
+}
+
+export async function apiLogin(email: string, password: string): Promise<{ token: string; user: { id: string; email: string } }> {
+  const res = await fetchWithTimeout(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: 'Invalid credentials' }));
+    throw new Error(err.detail || 'Invalid email or password');
+  }
+  const data = await res.json();
+  setAuthToken(data.token, data.user);
+  return data;
+}
+
+export async function apiGetMe(): Promise<{ id: string; email: string }> {
+  const res = await fetchWithTimeout(`${API_BASE}/auth/me`);
+  if (!res.ok) throw new Error('Not authenticated');
+  const user = await res.json();
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('auth_user', JSON.stringify(user));
+  }
+  return user;
+}
+
+/* =========================================================================
+   INTERVIEW & SESSION APIS
+========================================================================= */
 
 export async function fetchRoles(): Promise<RoleInfo[]> {
   try {
@@ -43,7 +140,7 @@ export async function startSession(
   jdText?: string,
   resumeText?: string
 ): Promise<{ session_id: string; role_id: string; role_title: string; language: string; total_questions: number; first_question: Question }> {
-  const res = await fetch(`${API_BASE}/sessions/start`, {
+  const res = await fetchWithTimeout(`${API_BASE}/sessions/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -54,13 +151,13 @@ export async function startSession(
       jd_text: jdText || '',
       resume_text: resumeText || ''
     })
-  });
+  }, 25000);
   if (!res.ok) throw new Error('Failed to start interview session');
   return res.json();
 }
 
 export async function fetchSessionQuestions(sessionId: string): Promise<Question[]> {
-  const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`);
+  const res = await fetchWithTimeout(`${API_BASE}/sessions/${sessionId}/questions`, {}, 15000);
   if (!res.ok) throw new Error('Failed to fetch questions for session');
   return res.json();
 }
@@ -102,7 +199,7 @@ export async function analyzeWebcamFrame(imageBase64: string): Promise<{
     }, 4000);
     if (!res.ok) throw new Error('Vision analysis request failed');
     return res.json();
-  } catch (err) {
+  } catch {
     return { face_detected: true, confidence_score: 80.0, eye_contact: 'Good' };
   }
 }
@@ -141,10 +238,9 @@ export async function transcribeSessionAudio(sessionId: string, audioBlob: Blob,
   return res.json();
 }
 
-
 export async function fetchSessionReport(sessionId: string): Promise<SessionReport> {
   try {
-    const res = await fetchWithTimeout(`${API_BASE}/sessions/${sessionId}/report`, {}, 10000);
+    const res = await fetchWithTimeout(`${API_BASE}/sessions/${sessionId}/report`, {}, 15000);
     if (!res.ok) throw new Error('Failed to generate interview report from backend');
     return res.json();
   } catch (err) {
@@ -154,7 +250,9 @@ export async function fetchSessionReport(sessionId: string): Promise<SessionRepo
 }
 
 export function getDownloadPdfUrl(sessionId: string): string {
-  return `${API_BASE}/sessions/${sessionId}/pdf`;
+  const token = getAuthToken();
+  const base = `${API_BASE}/sessions/${sessionId}/pdf`;
+  return token ? `${base}?token=${encodeURIComponent(token)}` : base;
 }
 
 export interface HistoricalSessionSummary {
@@ -175,7 +273,7 @@ export interface HistoricalSessionSummary {
 
 export async function fetchHistoricalSessions(limit = 20, offset = 0): Promise<{ total: number; sessions: HistoricalSessionSummary[] }> {
   try {
-    const res = await fetchWithTimeout(`${API_BASE}/sessions?limit=${limit}&offset=${offset}`, {}, 3000);
+    const res = await fetchWithTimeout(`${API_BASE}/sessions?limit=${limit}&offset=${offset}`, {}, 8000);
     if (!res.ok) throw new Error('Failed to fetch historical sessions');
     return res.json();
   } catch (err) {
@@ -186,7 +284,7 @@ export async function fetchHistoricalSessions(limit = 20, offset = 0): Promise<{
 
 export async function endSession(sessionId: string): Promise<SessionReport> {
   try {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/end`, { method: 'POST' });
+    const res = await fetchWithTimeout(`${API_BASE}/sessions/${sessionId}/end`, { method: 'POST' }, 15000);
     if (!res.ok) throw new Error('Failed to conclude session');
     return res.json();
   } catch (err) {
@@ -206,15 +304,8 @@ export async function extractPdfText(file: File): Promise<{ text: string }> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('auth_token') : null;
-  const headers: Record<string, string> = {};
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
   const res = await fetchWithTimeout(`${API_BASE}/extract`, {
     method: 'POST',
-    headers,
     body: formData,
   }, 25000);
 
