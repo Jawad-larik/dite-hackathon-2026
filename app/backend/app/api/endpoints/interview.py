@@ -12,7 +12,7 @@ from ...models.schemas import (
     SessionSummaryItem, SessionListResponse
 )
 from ...models.database import get_db, DBSession, DBAnswer
-from ...services.llm_service import evaluate_answer_with_llm
+from ...services.llm_service import evaluate_answer_with_llm, generate_questions_from_jd
 from ...services.speech_service import analyze_speech_transcript
 from ...services.scoring_service import calculate_weighted_score, extract_session_insights
 
@@ -72,25 +72,42 @@ def start_interview_session(req: SessionStartRequest, db: Session = Depends(get_
     role_info = next((r for r in data.get("roles", []) if r["id"] == role_id), None)
     if not role_info:
         raise HTTPException(status_code=404, detail="Role not found")
-        
-    role_questions = [
-        q for q in data.get("questions", []) 
-        if q["role"] == role_id and (req.interview_type == "all" or q["type"] == req.interview_type)
-    ]
+
+    jd_text = req.get_jd_text()
+    resume_text = req.get_resume_text()
+    
+    role_questions = []
+    if jd_text:
+        try:
+            role_questions = generate_questions_from_jd(
+                jd=jd_text,
+                resume=resume_text,
+                role=role_info["title"],
+                n=req.num_questions or 5
+            )
+        except Exception as e:
+            logger.warning(f"Error generating questions from JD: {e}")
+
     if not role_questions:
-        role_questions = [q for q in data.get("questions", []) if q["role"] == role_id]
+        role_questions = [
+            q for q in data.get("questions", []) 
+            if q["role"] == role_id and (req.interview_type == "all" or q["type"] == req.interview_type)
+        ]
+        if not role_questions:
+            role_questions = [q for q in data.get("questions", []) if q["role"] == role_id]
         
     if not role_questions:
         raise HTTPException(status_code=400, detail="No questions found for this role.")
         
-    # Create DB Session
+    # Create DB Session with persisted questions and JD/resume
     db_session = DBSession(
         role_id=role_id,
         role_title=role_info["title"],
         interview_type=req.interview_type,
         language=req.language or "en",
-        jd_text=req.get_jd_text(),
-        resume_text=req.get_resume_text()
+        jd_text=jd_text,
+        resume_text=resume_text,
+        questions_json=json.dumps(role_questions)
     )
     db.add(db_session)
     db.commit()
@@ -109,11 +126,19 @@ def start_interview_session(req: SessionStartRequest, db: Session = Depends(get_
 
 @router.get("/sessions/{session_id}/questions")
 def get_session_questions(session_id: str, db: Session = Depends(get_db)):
-    """Returns all questions configured for the session's role."""
+    """Returns all questions configured for the session's role (JD-tailored or standard)."""
     db_session = db.query(DBSession).filter(DBSession.id == session_id).first()
     if not db_session:
         raise HTTPException(status_code=404, detail="Session not found")
         
+    if db_session.questions_json:
+        try:
+            cached_qs = json.loads(db_session.questions_json)
+            if cached_qs and isinstance(cached_qs, list):
+                return [Question(**q) for q in cached_qs]
+        except Exception:
+            pass
+
     data = load_questions_data()
     role_questions = [
         q for q in data.get("questions", []) 
@@ -145,14 +170,24 @@ def submit_answer(
         else:
             raise HTTPException(status_code=404, detail="Session not found")
         
-    data = load_questions_data()
-    q_data = next((q for q in data.get("questions", []) if q["id"] == sub.question_id), None)
+    q_data = None
+    if db_session.questions_json:
+        try:
+            cached_qs = json.loads(db_session.questions_json)
+            if isinstance(cached_qs, list):
+                q_data = next((q for q in cached_qs if q.get("id") == sub.question_id), None)
+        except Exception:
+            pass
+
     if not q_data:
-        role_qs = [q for q in data.get("questions", []) if q.get("role") == db_session.role_id]
-        if role_qs:
-            q_data = role_qs[0]
-        else:
-            raise HTTPException(status_code=404, detail="Question not found")
+        data = load_questions_data()
+        q_data = next((q for q in data.get("questions", []) if q["id"] == sub.question_id), None)
+        if not q_data:
+            role_qs = [q for q in data.get("questions", []) if q.get("role") == db_session.role_id]
+            if role_qs:
+                q_data = role_qs[0]
+            else:
+                raise HTTPException(status_code=404, detail="Question not found")
         
     lang = sub.language or db_session.language or "en"
     

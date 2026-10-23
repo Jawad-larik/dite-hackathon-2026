@@ -327,3 +327,209 @@ Evaluate objectively and output ONLY a JSON object with this EXACT structure (no
         transcript=transcript,
         role_title=role_title
     )
+
+
+def _synthesize_heuristic_jd_questions(
+    jd: str,
+    resume: str = "",
+    role: str = "Software Engineer",
+    n: int = 5
+) -> List[Dict[str, Any]]:
+    """
+    Synthesizes structured interview questions by extracting key skills/technologies from the JD.
+    Guarantees deterministic question generation when all LLMs are unreachable.
+    """
+    tech_keywords = [
+        "Kubernetes", "Docker", "Kafka", "PostgreSQL", "Redis", "Distributed Systems",
+        "Microservices", "REST", "GraphQL", "Python", "React", "TypeScript", "AWS",
+        "GCP", "CI/CD", "Security", "Scalability", "Concurrency", "Database", "Observability"
+    ]
+    found_tech = [tech for tech in tech_keywords if re.search(r'\b' + re.escape(tech) + r'\b', jd, re.IGNORECASE)]
+    if not found_tech:
+        found_tech = ["Core Architecture", "High Availability", "Performance Optimization", "Data Modeling", "Failure Recovery"]
+
+    questions = []
+    templates = [
+        (
+            "How do you architect and tune a production system utilizing {tech} to ensure fault-tolerance and minimal p99 latency?",
+            ["High availability clustering", "Failover strategies", "Backpressure and metrics monitoring"],
+            "A resilient {tech} topology uses distributed replicas, proactive health probes, and circuit breakers to isolate cascading failures."
+        ),
+        (
+            "Based on the requirements for {role}, how would you implement data consistency and rollback mechanics with {tech}?",
+            ["Idempotent operations", "Transactional consistency / outbox pattern", "Automated rollback or dead-letter queue"],
+            "We employ unique idempotency identifiers, transactional logging, and automated compensation actions to preserve state consistency."
+        ),
+        (
+            "Describe a production incident or bottleneck you diagnosed involving {tech}, and the systemic steps taken to resolve it.",
+            ["Root cause analysis with telemetry", "Immediate triage mitigation", "Long-term architectural guardrails"],
+            "I conducted heap and thread dump triage, identified thread contention, refactored connection pooling, and deployed automated alerting."
+        ),
+        (
+            "How do you evaluate architectural trade-offs between delivery velocity and operational scalability when adopting {tech}?",
+            ["Quantifiable business requirements", "Operational complexity cost", "Phased migration roadmap"],
+            "I weigh latency SLAs and failure domains against development overhead, using modular abstractions to ease future transitions."
+        ),
+        (
+            "In this role, how would you design an automated observability and testing harness for services built on {tech}?",
+            ["Distributed tracing (OpenTelemetry)", "Synthetic canary transactions", "Automated integration pipelines"],
+            "An end-to-end telemetry harness captures trace spans, tracks error budgets, and runs automated load canaries prior to full rollout."
+        )
+    ]
+
+    for i in range(min(n, len(templates))):
+        tech = found_tech[i % len(found_tech)]
+        q_tpl, pts, model_ans = templates[i]
+        questions.append({
+            "id": f"jd_q_{i+1}",
+            "role": role.lower().replace(" ", "_"),
+            "type": "technical" if i < 3 else "behavioral",
+            "difficulty": "hard" if i % 2 == 0 else "medium",
+            "question": q_tpl.format(tech=tech, role=role),
+            "expected_points": pts,
+            "model_answer": model_ans.format(tech=tech, role=role),
+            "time_limit_sec": 90
+        })
+
+    return questions
+
+
+def generate_questions_from_jd(
+    jd: str,
+    resume: str = "",
+    role: str = "Software Engineer",
+    n: int = 5
+) -> List[Dict[str, Any]]:
+    """
+    Generates n rubric-tagged interview questions tailored directly to the Job Description and Resume.
+    Groq is primary (<800ms), OpenRouter is fallback, followed by a smart heuristic extractor.
+    """
+    if not jd or not jd.strip():
+        return []
+
+    prompt = f"""You are an elite Technical Hiring Bar Raiser designing an interview for a {role} position.
+
+Target Job Description:
+\"\"\"{jd.strip()}\"\"\"
+
+Candidate Resume / Profile Highlights:
+\"\"\"{resume.strip() if resume and resume.strip() else "None provided - evaluate standard role requirements."}\"\"\"
+
+Generate exactly {n} high-signal, distinct interview questions calibrated directly to the technical requirements, core tools, architectural patterns, and scenarios in this Job Description.
+
+Output ONLY a JSON object with this EXACT structure (no markdown fences, no text outside the JSON):
+{{
+  "questions": [
+    {{
+      "id": "jd_q_1",
+      "role": "{role.lower().replace(' ', '_')}",
+      "type": "technical",
+      "difficulty": "medium",
+      "question": "<Precise question directly referencing technologies or scenarios from the JD>",
+      "expected_points": [
+        "<Key technical concept 1>",
+        "<Key technical concept 2>",
+        "<Key technical concept 3>"
+      ],
+      "model_answer": "<Authoritative benchmark answer in 2-3 sentences>",
+      "time_limit_sec": 90
+    }}
+  ]
+}}"""
+
+    # 1. Primary: Groq Cloud
+    groq_api_key = os.getenv("GROQ_API_KEY", "") or getattr(settings, "GROQ_API_KEY", "")
+    if groq_api_key:
+        try:
+            import groq
+            groq_model = os.getenv("GROQ_MODEL", "") or getattr(settings, "GROQ_MODEL", "qwen/qwen3.8-27b")
+            client = groq.Groq(api_key=groq_api_key)
+            completion = client.chat.completions.create(
+                model=groq_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a senior technical interviewer who outputs strictly valid JSON schemas."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=700,
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+            raw_content = completion.choices[0].message.content.strip()
+            parsed = extract_json_object(raw_content)
+            qs = parsed.get("questions", [])
+            if isinstance(qs, list) and len(qs) > 0:
+                for i, q in enumerate(qs):
+                    if "id" not in q:
+                        q["id"] = f"jd_q_{i+1}"
+                    if "role" not in q:
+                        q["role"] = role.lower().replace(" ", "_")
+                    if "type" not in q:
+                        q["type"] = "technical"
+                    if "difficulty" not in q:
+                        q["difficulty"] = "medium"
+                    if "time_limit_sec" not in q:
+                        q["time_limit_sec"] = 90
+                logger.info(f"Generated {len(qs)} questions from JD via Groq ({groq_model})")
+                print(f"[LLM Engine] Generated {len(qs)} questions from JD via Groq ({groq_model})")
+                return qs[:n]
+        except Exception as groq_err:
+            logger.warning(f"Groq question generation failed: {groq_err}. Trying OpenRouter fallback.")
+            print(f"[LLM Engine] Groq question gen error ({groq_err}), trying OpenRouter fallback")
+
+    # 2. Fallback: OpenRouter
+    openrouter_key = os.getenv("OPENROUTER_API_KEY", "") or getattr(settings, "OPENROUTER_API_KEY", "")
+    if openrouter_key:
+        headers = {
+            "Authorization": f"Bearer {openrouter_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://localhost",
+            "X-Title": "AI-Based Interview Simulator"
+        }
+        payload = {
+            "model": getattr(settings, "OPENROUTER_MODEL", "cohere/north-mini-code:free"),
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a senior technical interviewer who outputs strictly valid JSON schemas."
+                },
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3
+        }
+        try:
+            response = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=12
+            )
+            if response.status_code == 200:
+                raw_content = response.json()['choices'][0]['message']['content'].strip()
+                parsed = extract_json_object(raw_content)
+                qs = parsed.get("questions", [])
+                if isinstance(qs, list) and len(qs) > 0:
+                    for i, q in enumerate(qs):
+                        if "id" not in q:
+                            q["id"] = f"jd_q_{i+1}"
+                        if "role" not in q:
+                            q["role"] = role.lower().replace(" ", "_")
+                        if "type" not in q:
+                            q["type"] = "technical"
+                        if "difficulty" not in q:
+                            q["difficulty"] = "medium"
+                        if "time_limit_sec" not in q:
+                            q["time_limit_sec"] = 90
+                    logger.info(f"Generated {len(qs)} questions from JD via OpenRouter")
+                    print(f"[LLM Engine] Generated {len(qs)} questions from JD via OpenRouter")
+                    return qs[:n]
+        except Exception as err:
+            logger.warning(f"OpenRouter question generation error: {err}")
+            print(f"[LLM Engine] OpenRouter question gen error ({err})")
+
+    # 3. Last Resort: Rule-Based Heuristic Question Synthesizer from JD
+    print("[LLM Engine] Using Heuristic Question Synthesizer for JD")
+    return _synthesize_heuristic_jd_questions(jd, resume, role, n)
+
