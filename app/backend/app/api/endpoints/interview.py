@@ -538,7 +538,7 @@ async def extract_pdf_text(
             detail="Unsupported media type. Only PDF files are accepted."
         )
 
-    # Read bytes into memory (reject > 2 MB)
+    # Read bytes into memory (reject > 2 MB, strictly discard disk temps)
     contents = await file.read()
     if len(contents) > 2 * 1024 * 1024:
         raise HTTPException(
@@ -546,12 +546,24 @@ async def extract_pdf_text(
             detail="Max 2 MB"
         )
 
-    reader = pypdf.PdfReader(io.BytesIO(contents))
-    text_parts = []
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            text_parts.append(page_text)
+    # In-memory extraction with fault-tolerant error wrapping
+    try:
+        buffer = io.BytesIO(contents)
+        reader = pypdf.PdfReader(buffer)
+        text_parts = []
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text_parts.append(page_text)
+        buffer.close()
+    except Exception as parse_err:
+        logger.warning(f"PDF extraction parse failure: {parse_err}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to parse PDF document: {str(parse_err)}"
+        )
+    finally:
+        del contents
 
     extracted_text = "\n".join(text_parts).strip()
     if not extracted_text:
@@ -561,5 +573,6 @@ async def extract_pdf_text(
         )
 
     return {"text": extracted_text[:20000]}
+
 
 
