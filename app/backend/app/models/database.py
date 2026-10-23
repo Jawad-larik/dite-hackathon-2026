@@ -39,6 +39,8 @@ class DBSession(Base):
     content_score = Column(Float, default=0.0)
     status = Column(String, default="in_progress")
     is_demo = Column(Integer, default=0)
+    jd_text = Column(Text, default="", nullable=True)
+    resume_text = Column(Text, default="", nullable=True)
 
     user = relationship("DBUser", back_populates="sessions")
     answers = relationship("DBAnswer", back_populates="session", cascade="all, delete-orphan")
@@ -69,7 +71,7 @@ class DBSession(Base):
         fields = [
             "id", "user_id", "role_id", "role_title", "interview_type", "language",
             "created_at", "overall_score", "confidence_score", "clarity_score",
-            "content_score", "status", "is_demo"
+            "content_score", "status", "is_demo", "jd_text", "resume_text"
         ]
         res = {}
         for k in fields:

@@ -102,10 +102,16 @@ export const App: React.FC = () => {
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handleStartSession = async (roleId: string, interviewType: string, language: string) => {
+  const handleStartSession = async (
+    roleId: string,
+    interviewType: string,
+    language: string,
+    jdText?: string,
+    resumeText?: string
+  ) => {
     setIsLoading(true);
     try {
-      const sessionData = await startSession(roleId, interviewType, 5, language);
+      const sessionData = await startSession(roleId, interviewType, 5, language, jdText, resumeText);
       const sessionQuestions = await fetchSessionQuestions(sessionData.session_id);
       
       setSessionId(sessionData.session_id);

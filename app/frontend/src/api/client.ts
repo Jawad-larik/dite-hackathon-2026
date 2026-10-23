@@ -39,7 +39,9 @@ export async function startSession(
   roleId: string, 
   interviewType: string = 'all', 
   numQuestions: number = 5,
-  language: string = 'en'
+  language: string = 'en',
+  jdText?: string,
+  resumeText?: string
 ): Promise<{ session_id: string; role_id: string; role_title: string; language: string; total_questions: number; first_question: Question }> {
   const res = await fetch(`${API_BASE}/sessions/start`, {
     method: 'POST',
@@ -48,7 +50,9 @@ export async function startSession(
       role_id: roleId,
       interview_type: interviewType,
       num_questions: numQuestions,
-      language: language
+      language: language,
+      jd_text: jdText || '',
+      resume_text: resumeText || ''
     })
   });
   if (!res.ok) throw new Error('Failed to start interview session');

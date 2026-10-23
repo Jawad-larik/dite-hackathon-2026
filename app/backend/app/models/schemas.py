@@ -59,9 +59,19 @@ class SessionStartRequest(BaseModel):
     language: Optional[str] = "en"          # en, ur, auto
     guest_name: Optional[str] = "Candidate"
     num_questions: Optional[int] = 5
+    jd_text: Optional[str] = ""
+    jdText: Optional[str] = ""
+    resume_text: Optional[str] = ""
+    resumeText: Optional[str] = ""
 
     def get_role_id(self) -> str:
         return self.role_id or self.roleId or "software_engineer"
+
+    def get_jd_text(self) -> str:
+        return (self.jd_text or self.jdText or "").strip()
+
+    def get_resume_text(self) -> str:
+        return (self.resume_text or self.resumeText or "").strip()
 
 class SessionStartResponse(BaseModel):
     session_id: str

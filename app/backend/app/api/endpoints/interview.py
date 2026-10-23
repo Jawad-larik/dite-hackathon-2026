@@ -88,7 +88,9 @@ def start_interview_session(req: SessionStartRequest, db: Session = Depends(get_
         role_id=role_id,
         role_title=role_info["title"],
         interview_type=req.interview_type,
-        language=req.language or "en"
+        language=req.language or "en",
+        jd_text=req.get_jd_text(),
+        resume_text=req.get_resume_text()
     )
     db.add(db_session)
     db.commit()

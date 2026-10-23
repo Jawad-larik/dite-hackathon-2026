@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { Terminal, Layers, ShieldCheck, Cpu, Activity } from 'lucide-react';
+import { Terminal, Layers, ShieldCheck, Cpu, Activity, FileText, Sparkles } from 'lucide-react';
 import { RoleDossierCard } from '../components/interview/RoleDossierCard';
 import { HardwareDiagnosticsConsole } from '../components/interview/HardwareDiagnosticsConsole';
 import { useSessionStore } from '../store/sessionStore';
 
 interface HomePageProps {
-  onStartSession: (roleId: string, interviewType: string, language: string) => void;
+  onStartSession: (roleId: string, interviewType: string, language: string, jdText?: string, resumeText?: string) => void;
   isLoading: boolean;
 }
 
@@ -53,6 +53,8 @@ const ROLES = [
  */
 export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading }) => {
   const [selectedRoleId, setSelectedRoleId] = useState<string>('software_engineer');
+  const [jdText, setJdText] = useState<string>('');
+  const [resumeText, setResumeText] = useState<string>('');
   const { selectRole } = useSessionStore();
 
   const handleSelectRole = (id: string) => {
@@ -68,7 +70,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading })
     if (selected) {
       selectRole(selected.id, selected.title);
     }
-    onStartSession(selectedRoleId, 'all', 'en');
+    onStartSession(selectedRoleId, 'all', 'en', jdText, resumeText);
   };
 
   const selectedRole = ROLES.find((r) => r.id === selectedRoleId) || ROLES[0];
@@ -134,6 +136,53 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading })
               </div>
             </div>
 
+            {/* Optional JD & Resume Intake Section */}
+            <div className="p-5 rounded-2xl bg-surface-panel/90 border border-border-subtle space-y-4">
+              <div className="flex items-center justify-between border-b border-border-subtle/50 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-signal" />
+                  <span className="font-mono text-xs uppercase tracking-wider text-text-primary font-semibold">
+                    Dynamic Calibration (Optional)
+                  </span>
+                </div>
+                <span className="font-mono text-[10px] uppercase px-2 py-0.5 rounded bg-amber-subtle text-amber-signal border border-amber-500/30 font-semibold">
+                  JD + Resume Adaptive
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="jd-input" className="flex items-center gap-1.5 text-xs font-mono text-text-secondary">
+                    <FileText className="w-3.5 h-3.5 text-amber-signal" />
+                    <span>Target Job Description</span>
+                  </label>
+                  <textarea
+                    id="jd-input"
+                    rows={3}
+                    value={jdText}
+                    onChange={(e) => setJdText(e.target.value)}
+                    placeholder="Paste job requirements or key stack requirements here to generate tailored questions..."
+                    className="w-full text-xs font-mono bg-surface-ground/90 border border-border-subtle focus:border-amber-signal/60 rounded-xl p-3 text-text-primary placeholder:text-text-tertiary/60 outline-none transition-colors resize-none"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="resume-input" className="flex items-center gap-1.5 text-xs font-mono text-text-secondary">
+                    <FileText className="w-3.5 h-3.5 text-mint-eval" />
+                    <span>Candidate Resume / Highlights</span>
+                  </label>
+                  <textarea
+                    id="resume-input"
+                    rows={3}
+                    value={resumeText}
+                    onChange={(e) => setResumeText(e.target.value)}
+                    placeholder="Paste candidate background, past projects, or experience summary for tailored probing..."
+                    className="w-full text-xs font-mono bg-surface-ground/90 border border-border-subtle focus:border-mint-eval/60 rounded-xl p-3 text-text-primary placeholder:text-text-tertiary/60 outline-none transition-colors resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Architecture Telemetry Metrics Banner */}
             <div className="p-4 rounded-xl bg-surface-panel/60 border border-border-subtle flex flex-wrap items-center justify-between gap-4 font-mono text-xs text-text-tertiary">
               <div className="flex items-center gap-2">
@@ -146,7 +195,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading })
               </div>
               <span className="text-border-subtle hidden sm:inline">|</span>
               <div>
-                <span>EVALUATION ENGINE: <strong className="text-text-primary">OPENROUTER / GEMINI</strong></span>
+                <span>EVALUATION ENGINE: <strong className="text-text-primary">GROQ / QWEN 27B</strong></span>
               </div>
             </div>
           </div>
