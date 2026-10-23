@@ -24,7 +24,6 @@ from ...models.database import get_db, DBSession, DBAnswer
 from ...services.llm_service import evaluate_answer_with_llm, generate_questions_from_jd, generate_adaptive_follow_up
 from ...services.speech_service import analyze_speech_transcript
 from ...services.scoring_service import calculate_weighted_score, extract_session_insights
-from .auth import get_current_user
 
 router = APIRouter()
 
@@ -42,18 +41,11 @@ def get_roles():
     return data.get("roles", [])
     
 @router.get("/sessions", response_model=SessionListResponse)
-def list_sessions(
-    limit: int = 20, 
-    offset: int = 0, 
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Returns paginated historical interview sessions for the current authenticated user."""
-    user_id = current_user["id"]
-    query = db.query(DBSession).filter(DBSession.user_id == user_id)
-    total = query.count()
+def list_sessions(limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
+    """Returns paginated historical interview sessions for the History page."""
+    total = db.query(DBSession).count()
     sessions = (
-        query
+        db.query(DBSession)
         .order_by(DBSession.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -62,18 +54,18 @@ def list_sessions(
     
     result = []
     for s in sessions:
-        ans_count = db.query(DBAnswer).filter(DBAnswer.session_id == s.id).count()
+        ans_count = len(s.answers)
         result.append(SessionSummaryItem(
             id=s.id,
             session_id=s.id,
             role_id=s.role_id,
             role_title=s.role_title,
             created_at=s.created_at.strftime("%Y-%m-%d %H:%M") if hasattr(s.created_at, "strftime") else str(s.created_at or ""),
-            overall_score=round(s.overall_score or 0.0, 1),
-            content_score=round(s.content_score or 0.0, 1),
-            clarity_score=round(s.clarity_score or 0.0, 1),
-            confidence_score=round(s.confidence_score or 0.0, 1),
-            composure_score=round(s.confidence_score or 0.0, 1),
+            overall_score=round(s.overall_score, 1),
+            content_score=round(s.content_score, 1),
+            clarity_score=round(s.clarity_score, 1),
+            confidence_score=round(s.confidence_score, 1),
+            composure_score=round(s.confidence_score, 1),
             status=s.status,
             is_demo=bool(s.is_demo),
             total_questions=ans_count
@@ -82,11 +74,7 @@ def list_sessions(
     return SessionListResponse(total=total, sessions=result)
 
 @router.post("/sessions/start", response_model=SessionStartResponse)
-def start_interview_session(
-    req: SessionStartRequest, 
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
+def start_interview_session(req: SessionStartRequest, db: Session = Depends(get_db)):
     """Initializes a new interview session and returns the first question."""
     data = load_questions_data()
     role_id = req.get_role_id()
@@ -120,9 +108,8 @@ def start_interview_session(
     if not role_questions:
         raise HTTPException(status_code=400, detail="No questions found for this role.")
         
-    # Create DB Session with persisted questions and JD/resume scoped to current user
+    # Create DB Session with persisted questions and JD/resume
     db_session = DBSession(
-        user_id=current_user["id"],
         role_id=role_id,
         role_title=role_info["title"],
         interview_type=req.interview_type,
@@ -147,16 +134,10 @@ def start_interview_session(
     )
 
 @router.get("/sessions/{session_id}/questions")
-def get_session_questions(
-    session_id: str, 
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
+def get_session_questions(session_id: str, db: Session = Depends(get_db)):
     """Returns all questions configured for the session's role (JD-tailored or standard)."""
     db_session = db.query(DBSession).filter(DBSession.id == session_id).first()
     if not db_session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if db_session.user_id and db_session.user_id != current_user["id"]:
         raise HTTPException(status_code=404, detail="Session not found")
         
     if db_session.questions_json:
@@ -178,8 +159,7 @@ def get_session_questions(
 def submit_answer(
     session_id: str, 
     sub: AnswerSubmission, 
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """Evaluates a single answered question using speech metrics and OpenRouter LLM."""
     db_session = db.query(DBSession).filter(DBSession.id == session_id).first()
@@ -187,7 +167,6 @@ def submit_answer(
         if session_id.startswith("sess-sim") or session_id.startswith("sess-demo"):
             db_session = DBSession(
                 id=session_id,
-                user_id=current_user["id"],
                 role_id="software_engineer",
                 role_title="Principal Distributed Systems Architect",
                 language="en",
@@ -199,9 +178,6 @@ def submit_answer(
             db.refresh(db_session)
         else:
             raise HTTPException(status_code=404, detail="Session not found")
-        
-    if db_session.user_id and db_session.user_id != current_user["id"]:
-        raise HTTPException(status_code=404, detail="Session not found")
         
     q_data = None
     if db_session.questions_json:
@@ -330,16 +306,10 @@ def submit_answer(
     )
 
 @router.get("/sessions/{session_id}/report", response_model=SessionReport)
-def get_session_report(
-    session_id: str, 
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
+def get_session_report(session_id: str, db: Session = Depends(get_db)):
     """Computes and returns the comprehensive final interview report."""
     db_session = db.query(DBSession).filter(DBSession.id == session_id).first()
     if not db_session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if db_session.user_id and db_session.user_id != current_user["id"]:
         raise HTTPException(status_code=404, detail="Session not found")
         
     answers = db.query(DBAnswer).filter(DBAnswer.session_id == session_id).all()
@@ -427,20 +397,15 @@ def get_session_report(
     )
 
 @router.post("/sessions/{session_id}/end", response_model=SessionReport)
-def end_interview_session(
-    session_id: str, 
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
+def end_interview_session(session_id: str, db: Session = Depends(get_db)):
     """Concludes active interview session, aggregates final score, and returns dossier."""
-    return get_session_report(session_id=session_id, db=db, current_user=current_user)
+    return get_session_report(session_id=session_id, db=db)
 
 @router.post("/sessions/{session_id}/evaluate", response_model=QuestionEvaluation)
 def evaluate_session_answer(
     session_id: str,
     payload: dict,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """
     Multimodal evaluation endpoint accepting camelCase or snake_case payloads.
@@ -462,14 +427,13 @@ def evaluate_session_answer(
         confidence_score=confidence,
         audio_filler_count=audio_filler_count
     )
-    return submit_answer(session_id=session_id, sub=sub, db=db, current_user=current_user)
+    return submit_answer(session_id=session_id, sub=sub, db=db)
 
 @router.post("/sessions/{session_id}/transcribe")
 async def transcribe_session_audio(
     session_id: str,
     audio_file: UploadFile = File(...),
-    language: Optional[str] = Form("en"),
-    current_user: dict = Depends(get_current_user)
+    language: Optional[str] = Form("en")
 ):
     """Transcribes audio chunk recorded via browser MediaRecorder for a specific session."""
     return await transcribe_speech_audio(audio_file=audio_file, language=language)
@@ -566,7 +530,7 @@ async def transcribe_speech_audio(
 async def extract_pdf_text(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    authorization: Optional[str] = Header(None)
 ):
     """
     Extracts text from uploaded PDF document for JD or Resume intake.

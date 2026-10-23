@@ -13,7 +13,6 @@ from reportlab.pdfgen import canvas
 
 from ...models.database import get_db, DBSession, DBAnswer
 from ...services.scoring_service import extract_session_insights
-from .auth import get_current_user
 
 router = APIRouter()
 
@@ -70,11 +69,7 @@ def get_tier_info(score: float):
         return "FOUNDATIONAL (0–54)", colors.HexColor('#94A3B8'), "Underlying concepts require structured reinforcement before formal evaluation."
 
 @router.get("/sessions/{session_id}/pdf")
-def export_session_pdf(
-    session_id: str, 
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
+def export_session_pdf(session_id: str, db: Session = Depends(get_db)):
     """
     Generates a publication-grade multi-page PDF evaluation dossier.
     Includes Executive Header, Readiness Tier, Core Pillars, 5-Axis Competency Matrix,
@@ -82,8 +77,6 @@ def export_session_pdf(
     """
     db_session = db.query(DBSession).filter(DBSession.id == session_id).first()
     if not db_session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if db_session.user_id and db_session.user_id != current_user["id"]:
         raise HTTPException(status_code=404, detail="Session not found")
         
     answers = db.query(DBAnswer).filter(DBAnswer.session_id == session_id).all()

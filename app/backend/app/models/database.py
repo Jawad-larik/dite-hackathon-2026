@@ -17,43 +17,12 @@ Base = declarative_base()
 class DBUser(Base):
     __tablename__ = "users"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    email = Column(String, unique=True, index=True, nullable=False)
-    password_hash = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=True)
+    hashed_password = Column(String, nullable=True)
+    full_name = Column(String, default="Candidate")
+    is_guest = Column(Integer, default=1)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     sessions = relationship("DBSession", back_populates="user")
-
-    def __init__(self, **kwargs):
-        if "id" not in kwargs or not kwargs["id"]:
-            kwargs["id"] = str(uuid.uuid4())
-        if "created_at" not in kwargs or kwargs["created_at"] is None:
-            kwargs["created_at"] = datetime.now(timezone.utc)
-        super().__init__(**kwargs)
-        self.id = kwargs["id"]
-        self.created_at = kwargs["created_at"]
-
-    @classmethod
-    def from_mongo(cls, doc):
-        d = dict(doc)
-        d.pop("_id", None)
-        if "created_at" in d and isinstance(d["created_at"], str):
-            try:
-                d["created_at"] = datetime.fromisoformat(d["created_at"])
-            except Exception:
-                d["created_at"] = datetime.now(timezone.utc)
-        return cls(**d)
-
-    def to_mongo(self):
-        fields = ["id", "email", "password_hash", "created_at"]
-        res = {}
-        for k in fields:
-            val = getattr(self, k, None)
-            if isinstance(val, datetime):
-                res[k] = val.isoformat()
-            else:
-                res[k] = val
-        if "id" in res and "_id" not in res:
-            res["_id"] = res["id"]
-        return res
 
 class DBSession(Base):
     __tablename__ = "interview_sessions"
@@ -82,22 +51,9 @@ class DBSession(Base):
             kwargs["id"] = str(uuid.uuid4())
         if "created_at" not in kwargs or kwargs["created_at"] is None:
             kwargs["created_at"] = datetime.now(timezone.utc)
-        kwargs.setdefault("overall_score", 0.0)
-        kwargs.setdefault("confidence_score", 0.0)
-        kwargs.setdefault("clarity_score", 0.0)
-        kwargs.setdefault("content_score", 0.0)
-        kwargs.setdefault("status", "in_progress")
-        kwargs.setdefault("is_demo", 0)
         super().__init__(**kwargs)
         self.id = kwargs["id"]
         self.created_at = kwargs["created_at"]
-        self.overall_score = float(kwargs.get("overall_score") or 0.0)
-        self.confidence_score = float(kwargs.get("confidence_score") or 0.0)
-        self.clarity_score = float(kwargs.get("clarity_score") or 0.0)
-        self.content_score = float(kwargs.get("content_score") or 0.0)
-        self.status = str(kwargs.get("status") or "in_progress")
-        self.is_demo = int(kwargs.get("is_demo") or 0)
-        self.user_id = kwargs.get("user_id")
         self._cached_answers = kwargs.get("answers", None)
 
     @classmethod
@@ -109,13 +65,6 @@ class DBSession(Base):
                 d["created_at"] = datetime.fromisoformat(d["created_at"])
             except Exception:
                 d["created_at"] = datetime.now(timezone.utc)
-        d.setdefault("overall_score", 0.0)
-        d.setdefault("confidence_score", 0.0)
-        d.setdefault("clarity_score", 0.0)
-        d.setdefault("content_score", 0.0)
-        d.setdefault("status", "in_progress")
-        d.setdefault("is_demo", 0)
-        d.setdefault("user_id", None)
         obj = cls(**d)
         return obj
 
@@ -237,12 +186,7 @@ class MongoQuery:
     def __init__(self, model_class, mongo_db):
         self.model_class = model_class
         self.mongo_db = mongo_db
-        if model_class == DBUser:
-            self.collection = mongo_db["users"]
-        elif model_class == DBSession:
-            self.collection = mongo_db["sessions"]
-        else:
-            self.collection = mongo_db["answers"]
+        self.collection = mongo_db["sessions"] if model_class == DBSession else mongo_db["answers"]
         self.filter_dict = {}
         self.sort_criteria = None
         self._skip = 0
@@ -308,12 +252,7 @@ class MongoSession:
         return MongoQuery(model_class, self.mongo_db)
 
     def add(self, obj):
-        if isinstance(obj, DBUser):
-            col = self.mongo_db["users"]
-        elif isinstance(obj, DBSession):
-            col = self.mongo_db["sessions"]
-        else:
-            col = self.mongo_db["answers"]
+        col = self.mongo_db["sessions"] if isinstance(obj, DBSession) else self.mongo_db["answers"]
         doc = obj.to_mongo()
         col.update_one({"id": obj.id}, {"$set": doc}, upsert=True)
 
@@ -324,12 +263,7 @@ class MongoSession:
         pass
 
     def refresh(self, obj):
-        if isinstance(obj, DBUser):
-            col = self.mongo_db["users"]
-        elif isinstance(obj, DBSession):
-            col = self.mongo_db["sessions"]
-        else:
-            col = self.mongo_db["answers"]
+        col = self.mongo_db["sessions"] if isinstance(obj, DBSession) else self.mongo_db["answers"]
         doc = col.find_one({"id": obj.id})
         if doc:
             for k, v in doc.items():
@@ -489,9 +423,7 @@ def init_db():
     """Initializes schemas/indexes and optionally seeds benchmark sessions."""
     if is_mongo and _mongo_db is not None:
         try:
-            _mongo_db["users"].create_index("email", unique=True)
             _mongo_db["sessions"].create_index("id", unique=True)
-            _mongo_db["sessions"].create_index("user_id")
             _mongo_db["sessions"].create_index([("created_at", -1)])
             _mongo_db["answers"].create_index("session_id")
             _mongo_db["answers"].create_index([("session_id", 1), ("question_id", 1)])

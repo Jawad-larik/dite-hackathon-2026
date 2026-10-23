@@ -29,8 +29,7 @@ class Settings:
     WEIGHT_CLARITY: float = float(os.getenv("WEIGHT_CLARITY", "0.30"))
     WEIGHT_CONTENT: float = float(os.getenv("WEIGHT_CONTENT", "0.40"))
     
-    JWT_SECRET: str = os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY", "dite-hackathon-2026-super-secret-jwt-key")
-    SECRET_KEY: str = os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY", "dite-hackathon-2026-super-secret-jwt-key")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "secret-key-for-jwt-token")
     ALGORITHM: str = os.getenv("ALGORITHM", "HS256")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
     

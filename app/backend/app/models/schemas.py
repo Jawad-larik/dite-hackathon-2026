@@ -123,16 +123,3 @@ class SessionReport(BaseModel):
     
     per_question_results: List[QuestionEvaluation]
 
-
-class UserResponse(BaseModel):
-    id: str
-    email: str
-
-class AuthRequest(BaseModel):
-    email: str
-    password: str
-
-class AuthResponse(BaseModel):
-    token: str
-    user: UserResponse
-
