@@ -14,6 +14,16 @@
       "id": "hr_general",
       "title": "HR & General Professional",
       "description": "Human resources, talent management, interpersonal dynamics and workplace problem-solving."
+    },
+    {
+      "id": "product_manager",
+      "title": "Product Manager",
+      "description": "Product strategy, roadmap prioritization, and stakeholder alignment."
+    },
+    {
+      "id": "hr_behavioral",
+      "title": "HR & Executive Behavioral",
+      "description": "Leadership principles, STAR methodology, and executive presence."
     }
   ],
   "questions": [
@@ -134,6 +144,62 @@
         "Successful delivery and lessons learned"
       ],
       "model_answer": "I used the Eisenhower Matrix to isolate mission-critical deliverables, communicated early with stakeholders to renegotiate non-critical tickets, and time-boxed deep work sessions to deliver the project on time.",
+      "time_limit_sec": 75
+    },
+    {
+      "id": "pm_01",
+      "role": "product_manager",
+      "type": "technical",
+      "difficulty": "medium",
+      "question": "How do you prioritize competing engineering and business requests when roadmap capacity is constrained?",
+      "expected_points": [
+        "Use prioritized framework like RICE (Reach, Impact, Confidence, Effort) or Kano",
+        "Quantify business upside vs technical debt and platform SLAs",
+        "Transparent stakeholder communication and expectation alignment"
+      ],
+      "model_answer": "I utilize the RICE framework combined with strategic alignment metrics. We quantify reach and customer impact against engineering effort, while ensuring core platform reliability SLAs and architectural tech debt are safeguarded.",
+      "time_limit_sec": 75
+    },
+    {
+      "id": "pm_02",
+      "role": "product_manager",
+      "type": "technical",
+      "difficulty": "hard",
+      "question": "How do you decompose a company North Star metric into actionable input metrics for product squads?",
+      "expected_points": [
+        "Distinguish between lagging North Star metrics and leading input metrics",
+        "Build a metric tree breaking down drivers (e.g. activation, retention, frequency)",
+        "Establish guardrail metrics to avoid perverse incentives"
+      ],
+      "model_answer": "A North Star metric is typically a lagging indicator like weekly active users or GMV. I decompose it into leading input drivers across acquisition, activation, engagement frequency, and cohort retention, paired with quality guardrail metrics to prevent counter-productive optimization.",
+      "time_limit_sec": 90
+    },
+    {
+      "id": "hr_behav_01",
+      "role": "hr_behavioral",
+      "type": "behavioral",
+      "difficulty": "easy",
+      "question": "Describe a situation where you had to push back on an executive deadline due to architectural technical debt or team burn-out.",
+      "expected_points": [
+        "Follow STAR framework (Situation, Task, Action, Result)",
+        "Frame the risk in terms of customer SLA violations and MTTR impact",
+        "Present a phased delivery compromise and secure executive buy-in"
+      ],
+      "model_answer": "I framed the risk in terms of customer SLA violations and MTTR impact, presented a phased delivery compromise, and secured buy-in for refactoring foundational storage bottlenecks.",
+      "time_limit_sec": 75
+    },
+    {
+      "id": "hr_behav_02",
+      "role": "hr_behavioral",
+      "type": "behavioral",
+      "difficulty": "medium",
+      "question": "Tell me about a time you mentored a struggling team member and helped them turn their performance around.",
+      "expected_points": [
+        "Follow STAR framework (Situation, Task, Action, Result)",
+        "Empathetic root-cause diagnosis without judgment",
+        "Clear 30-day milestone checklist and weekly pairing sessions"
+      ],
+      "model_answer": "I held a 1-on-1 to understand where the friction lay, established a 30-day structured milestone plan with pair programming on complex pull requests, and within six weeks their velocity and test coverage increased significantly.",
       "time_limit_sec": 75
     }
   ]

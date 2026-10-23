@@ -37,14 +37,14 @@ export const Header: React.FC<HeaderProps> = ({ onReset, onNavigate, currentView
           <div>
             <div className="flex items-center gap-2">
               <span className="font-display font-bold text-base text-text-primary tracking-tight">
-                HR BOT
+                AI INTERVIEW ASSESSOR
               </span>
               <span className="px-2 py-0.5 text-[10px] font-mono font-semibold rounded bg-amber-subtle text-amber-signal border border-amber-500/30">
-                MK-IV
+                PRO
               </span>
             </div>
             <p className="text-[11px] font-mono text-text-tertiary">
-              AUTONOMOUS INTERVIEW SIMULATOR // FYP 2026
+              AUTONOMOUS MULTIMODAL EVALUATOR // DITE 2026
             </p>
           </div>
         </div>
