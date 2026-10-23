@@ -1,0 +1,11 @@
+tools/
+.agents/
+.obsidian/
+app/backend/
+**/.git/
+**/*.db
+**/*.sqlite
+**/*.pdf
+**/*.webm
+node_modules/
+**/node_modules/
