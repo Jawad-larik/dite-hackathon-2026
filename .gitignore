@@ -13,6 +13,8 @@ dist/
 .env
 .env*.local
 .env.local
+*.env
+atlas-credentials.env
 Api openrouter.md
 *.key
 *.pem
