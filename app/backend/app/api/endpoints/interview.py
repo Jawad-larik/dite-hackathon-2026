@@ -1,12 +1,15 @@
 import os
 import io
 import json
+import logging
 import asyncio
 import pypdf
 from pathlib import Path
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Header
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from ...models.schemas import (
     RoleInfo, Question, SessionStartRequest, SessionStartResponse,
