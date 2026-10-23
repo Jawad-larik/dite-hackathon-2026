@@ -1,9 +1,11 @@
 import os
+import io
 import json
 import asyncio
+import pypdf
 from pathlib import Path
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Header
 from sqlalchemy.orm import Session
 
 from ...models.schemas import (
@@ -515,4 +517,49 @@ async def transcribe_speech_audio(
                 os.remove(tmp_path)
             except OSError:
                 pass
+
+
+@router.post("/extract")
+async def extract_pdf_text(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Extracts text from uploaded PDF document for JD or Resume intake.
+    Enforces application/pdf type, max 2MB size, in-memory parsing, and 20,000 char cap.
+    """
+    is_pdf = (file.content_type in ["application/pdf", "application/x-pdf"]) or (
+        file.filename and file.filename.lower().endswith(".pdf")
+    )
+    if not is_pdf:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Unsupported media type. Only PDF files are accepted."
+        )
+
+    # Read bytes into memory (reject > 2 MB)
+    contents = await file.read()
+    if len(contents) > 2 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Max 2 MB"
+        )
+
+    reader = pypdf.PdfReader(io.BytesIO(contents))
+    text_parts = []
+    for page in reader.pages:
+        page_text = page.extract_text()
+        if page_text:
+            text_parts.append(page_text)
+
+    extracted_text = "\n".join(text_parts).strip()
+    if not extracted_text:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No text found in PDF"
+        )
+
+    return {"text": extracted_text[:20000]}
+
 
