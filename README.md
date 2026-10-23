@@ -3,8 +3,8 @@
 > **Autonomous Multimodal Technical & Behavioral Interview Evaluation Platform**  
 > *Built for the DITE Hackathon 2026-27 (Denning Institute of Technology and Entrepreneurship)*
 
-[![Vercel Frontend](https://img.shields.io/badge/Frontend-Vercel%20Live-black?style=for-the-badge&logo=vercel)](https://dite-hackathon-2026.vercel.app)
-[![Render Backend](https://img.shields.io/badge/Backend-Render%20Live-46E3B7?style=for-the-badge&logo=render)](https://ai-interview-assessor.onrender.com)
+[![Vercel Frontend](https://img.shields.io/badge/Frontend-Vercel%20Live-black?style=for-the-badge&logo=vercel)](https://frontend-ivory-rho-39.vercel.app)
+[![Render Backend](https://img.shields.io/badge/Backend-Render%20Live-46E3B7?style=for-the-badge&logo=render)](https://dite-hackathon-2026.onrender.com)
 [![MongoDB Atlas](https://img.shields.io/badge/Database-MongoDB%20Atlas-47A248?style=for-the-badge&logo=mongodb)](https://cloud.mongodb.com)
 [![Groq Fast Inference](https://img.shields.io/badge/AI%20Inference-Groq%20LPU-f55036?style=for-the-badge)](https://groq.com)
 
@@ -88,7 +88,7 @@ graph TD
 
 | Variable | Description | Example |
 |---|---|---|
-| `VITE_API_URL` | Live Render backend endpoint | `https://ai-interview-assessor.onrender.com` |
+| `VITE_API_URL` | Live Render backend endpoint | `https://dite-hackathon-2026.onrender.com` |
 
 ---
 
