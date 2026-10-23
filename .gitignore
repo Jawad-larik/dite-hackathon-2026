@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing & Build
+.next/
+out/
+build/
+dist/
+
+# Environment Variables & Secret Files (CRITICAL FOR HACKATHON RULES)
+.env
+.env*.local
+.env.local
+Api openrouter.md
+*.key
+*.pem
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Cloned Heavy Tool Repositories (offline reference suites)
+tools/
+

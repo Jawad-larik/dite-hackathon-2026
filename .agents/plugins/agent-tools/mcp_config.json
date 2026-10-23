@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "ruflo": {
+      "command": "npx",
+      "args": ["-y", "ruflo@latest", "mcp"]
+    },
+    "camofox-browser": {
+      "command": "npx",
+      "args": ["-y", "@camofox/mcp@latest"],
+      "env": {
+        "CAMOFOX_PORT": "9377"
+      }
+    }
+  }
+}
