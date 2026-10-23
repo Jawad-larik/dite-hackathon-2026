@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: ai-interview-simulator-backend
+    env: python
+    plan: free
+    rootDir: app/backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DEMO_MODE
+        value: "true"
+      - key: GROQ_MODEL
+        value: "qwen/qwen3.8-27b"
+      - key: OPENROUTER_MODEL
+        value: "cohere/north-mini-code:free"
+      - key: OPENROUTER_FALLBACK_MODEL
+        value: "local_heuristic"
+      - key: WEIGHT_CONFIDENCE
+        value: "0.30"
+      - key: WEIGHT_CLARITY
+        value: "0.30"
+      - key: WEIGHT_CONTENT
+        value: "0.40"
+      - key: DATABASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false

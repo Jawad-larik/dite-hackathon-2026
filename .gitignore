@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+**/node_modules/
 .pnp
 .pnp.js
 
@@ -8,12 +9,25 @@ node_modules/
 out/
 build/
 dist/
+**/dist/
+**/.vite/
+
+# Python & Databases
+**/__pycache__/
+*.pyc
+**/*.pyc
+*.db
+**/*.db
+*.sqlite
+**/*.sqlite
 
 # Environment Variables & Secret Files (CRITICAL FOR HACKATHON RULES)
 .env
 .env*.local
 .env.local
 *.env
+**/.env
+**/.env*
 atlas-credentials.env
 Api openrouter.md
 *.key
@@ -22,6 +36,7 @@ Api openrouter.md
 # IDE & OS
 .vscode/
 .idea/
+.obsidian/
 .DS_Store
 Thumbs.db
 
