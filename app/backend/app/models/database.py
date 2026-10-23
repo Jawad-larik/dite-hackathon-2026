@@ -150,6 +150,11 @@ class DBAnswer(Base):
             res["created_at"] = self.created_at or datetime.now(timezone.utc)
         return res
 
+# SQLite Engine (Always initialized as infallible bedrock fallback)
+sqlite_url = settings.DATABASE_URL if ("sqlite" in settings.DATABASE_URL) else "sqlite:///./interview_simulator.db"
+sqlite_engine = create_engine(sqlite_url, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sqlite_engine)
+
 # -------------------------------------------------------------
 # Determine Backend: MongoDB Atlas vs SQLite Fallback
 # -------------------------------------------------------------
@@ -163,21 +168,16 @@ if is_mongo:
     try:
         import pymongo
         logger.info("[Database] Connecting to MongoDB Atlas cluster...")
-        _mongo_client = pymongo.MongoClient(db_url, serverSelectionTimeoutMS=5000)
+        _mongo_client = pymongo.MongoClient(db_url, serverSelectionTimeoutMS=2500)
+        # Test connection actively
+        _mongo_client.admin.command('ping')
         _mongo_db = _mongo_client.get_database("interview_simulator")
-        logger.info("[Database] MongoDB Atlas connection established successfully.")
+        logger.info("[Database] MongoDB Atlas connection verified successfully.")
     except Exception as e:
-        logger.error(f"[Database] Failed to connect to MongoDB Atlas ({e}). Falling back to SQLite.")
+        logger.warning(f"[Database] MongoDB Atlas unavailable ({e}). Falling back to SQLite.")
         is_mongo = False
-
-# SQLite Engine (used when not using MongoDB or on local dev fallback)
-sqlite_engine = None
-SessionLocal = None
-
-if not is_mongo:
-    sqlite_url = settings.DATABASE_URL if "sqlite" in settings.DATABASE_URL else "sqlite:///./interview_simulator.db"
-    sqlite_engine = create_engine(sqlite_url, connect_args={"check_same_thread": False})
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sqlite_engine)
+        _mongo_client = None
+        _mongo_db = None
 
 # -------------------------------------------------------------
 # MongoDB Session & Query Emulation Layer
@@ -421,6 +421,20 @@ def seed_demo_sessions(db):
 # -------------------------------------------------------------
 def init_db():
     """Initializes schemas/indexes and optionally seeds benchmark sessions."""
+    # Always create SQLite tables as bedrock fallback
+    if sqlite_engine is not None:
+        try:
+            Base.metadata.create_all(bind=sqlite_engine)
+            if SessionLocal is not None:
+                db = SessionLocal()
+                try:
+                    seed_demo_sessions(db)
+                finally:
+                    db.close()
+        except Exception as sq_err:
+            logger.warning(f"[Database] SQLite schema creation: {sq_err}")
+
+    # Initialize MongoDB if verified and available
     if is_mongo and _mongo_db is not None:
         try:
             _mongo_db["sessions"].create_index("id", unique=True)
@@ -429,19 +443,10 @@ def init_db():
             _mongo_db["answers"].create_index([("session_id", 1), ("question_id", 1)])
             logger.info("[Database] MongoDB Atlas indexes initialized.")
             
-            if settings.DEMO_MODE:
-                session = MongoSession(_mongo_db)
-                seed_demo_sessions(session)
+            session = MongoSession(_mongo_db)
+            seed_demo_sessions(session)
         except Exception as e:
             logger.error(f"[Database] Error initializing MongoDB: {e}")
-    elif sqlite_engine is not None:
-        Base.metadata.create_all(bind=sqlite_engine)
-        if settings.DEMO_MODE and SessionLocal is not None:
-            db = SessionLocal()
-            try:
-                seed_demo_sessions(db)
-            finally:
-                db.close()
 
 def get_db():
     """FastAPI Dependency: Yields MongoSession or SQLAlchemy Session."""
@@ -449,9 +454,12 @@ def get_db():
         session = MongoSession(_mongo_db)
         try:
             yield session
-        finally:
-            session.close()
-    elif SessionLocal is not None:
+            return
+        except Exception as e:
+            logger.warning(f"[Database] Mongo session failed ({e}), falling back to SQLite.")
+
+    # Guaranteed SQLite session
+    if SessionLocal is not None:
         db = SessionLocal()
         try:
             yield db
