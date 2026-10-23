@@ -82,9 +82,22 @@ class DBSession(Base):
             kwargs["id"] = str(uuid.uuid4())
         if "created_at" not in kwargs or kwargs["created_at"] is None:
             kwargs["created_at"] = datetime.now(timezone.utc)
+        kwargs.setdefault("overall_score", 0.0)
+        kwargs.setdefault("confidence_score", 0.0)
+        kwargs.setdefault("clarity_score", 0.0)
+        kwargs.setdefault("content_score", 0.0)
+        kwargs.setdefault("status", "in_progress")
+        kwargs.setdefault("is_demo", 0)
         super().__init__(**kwargs)
         self.id = kwargs["id"]
         self.created_at = kwargs["created_at"]
+        self.overall_score = float(kwargs.get("overall_score") or 0.0)
+        self.confidence_score = float(kwargs.get("confidence_score") or 0.0)
+        self.clarity_score = float(kwargs.get("clarity_score") or 0.0)
+        self.content_score = float(kwargs.get("content_score") or 0.0)
+        self.status = str(kwargs.get("status") or "in_progress")
+        self.is_demo = int(kwargs.get("is_demo") or 0)
+        self.user_id = kwargs.get("user_id")
         self._cached_answers = kwargs.get("answers", None)
 
     @classmethod
@@ -96,6 +109,13 @@ class DBSession(Base):
                 d["created_at"] = datetime.fromisoformat(d["created_at"])
             except Exception:
                 d["created_at"] = datetime.now(timezone.utc)
+        d.setdefault("overall_score", 0.0)
+        d.setdefault("confidence_score", 0.0)
+        d.setdefault("clarity_score", 0.0)
+        d.setdefault("content_score", 0.0)
+        d.setdefault("status", "in_progress")
+        d.setdefault("is_demo", 0)
+        d.setdefault("user_id", None)
         obj = cls(**d)
         return obj
 
