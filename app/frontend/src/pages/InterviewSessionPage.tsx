@@ -373,6 +373,27 @@ export const InterviewSessionPage: React.FC<InterviewSessionPageProps> = ({
       clearInterval(analyzeTimer);
       setWarningMessage(null);
       setEvaluation(currentQuestion.id, evaluation);
+
+      // Adaptive Follow-up: Insert one follow-up question immediately after current question
+      if (evaluation.follow_up_question && evaluation.follow_up_question.trim().length > 0) {
+        const nextQ = questions[currentQuestionIndex + 1];
+        if (!nextQ || !nextQ.is_follow_up) {
+          const followUpQ: Question = {
+            id: `followup-${currentQuestion.id}-${Date.now()}`,
+            role: currentQuestion.role,
+            type: currentQuestion.type,
+            difficulty: currentQuestion.difficulty,
+            question: evaluation.follow_up_question.trim(),
+            expected_points: ['Direct technical trade-off explanation', 'Concrete operational mechanism'],
+            model_answer: 'A concise technical response explaining the trade-off and failure isolation semantics.',
+            time_limit_sec: 60,
+            is_follow_up: true,
+          };
+          const updated = [...questions];
+          updated.splice(currentQuestionIndex + 1, 0, followUpQ);
+          useSessionStore.getState().setQuestions(updated);
+        }
+      }
     } catch (err) {
       clearInterval(analyzeTimer);
       setWarningMessage(null);
@@ -534,6 +555,7 @@ export const InterviewSessionPage: React.FC<InterviewSessionPageProps> = ({
                 category={currentQuestion.type}
                 questionIndex={currentQuestionIndex + 1}
                 totalQuestions={questions.length}
+                isFollowUp={Boolean(currentQuestion?.is_follow_up)}
                 isSpeaking={isSpeakingQuestion}
                 onSpeak={handleSpeakQuestion}
                 onStopSpeak={handleStopSpeakQuestion}

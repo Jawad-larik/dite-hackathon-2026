@@ -14,6 +14,7 @@ export interface Question {
   expected_points: string[];
   model_answer: string;
   time_limit_sec: number;
+  is_follow_up?: boolean;
 }
 
 export interface QuestionEvaluation {
@@ -34,6 +35,7 @@ export interface QuestionEvaluation {
   feedback: string;
   improvement_tips: string[];
   model_answer: string;
+  follow_up_question?: string;
 }
 
 export interface SessionReport {

@@ -15,6 +15,7 @@ class Question(BaseModel):
     expected_points: List[str]
     model_answer: str
     time_limit_sec: int = 60
+    is_follow_up: Optional[bool] = False
 
 class AnswerSubmission(BaseModel):
     session_id: str
@@ -51,6 +52,7 @@ class QuestionEvaluation(BaseModel):
     feedback: str
     improvement_tips: List[str]
     model_answer: str
+    follow_up_question: Optional[str] = None
 
 class SessionStartRequest(BaseModel):
     role_id: Optional[str] = None

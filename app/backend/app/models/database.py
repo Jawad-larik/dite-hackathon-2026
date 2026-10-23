@@ -104,6 +104,7 @@ class DBAnswer(Base):
     overall_score = Column(Float, default=0.0)
     feedback = Column(Text, default="")
     improvement_tips = Column(Text, default="[]")
+    follow_up_question = Column(Text, default=None, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     session = relationship("DBSession", back_populates="answers")
@@ -133,7 +134,8 @@ class DBAnswer(Base):
             "id", "session_id", "question_id", "question_text", "transcript",
             "duration_seconds", "relevance_score", "completeness_score",
             "structure_score", "content_score", "clarity_score",
-            "confidence_score", "overall_score", "feedback", "improvement_tips", "created_at"
+            "confidence_score", "overall_score", "feedback", "improvement_tips",
+            "follow_up_question", "created_at"
         ]
         res = {}
         for k in fields:

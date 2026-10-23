@@ -12,7 +12,7 @@ from ...models.schemas import (
     SessionSummaryItem, SessionListResponse
 )
 from ...models.database import get_db, DBSession, DBAnswer
-from ...services.llm_service import evaluate_answer_with_llm, generate_questions_from_jd
+from ...services.llm_service import evaluate_answer_with_llm, generate_questions_from_jd, generate_adaptive_follow_up
 from ...services.speech_service import analyze_speech_transcript
 from ...services.scoring_service import calculate_weighted_score, extract_session_insights
 
@@ -221,6 +221,19 @@ def submit_answer(
     # Combine improvement tips
     combined_tips = llm_res.get("improvement_tips", []) + speech_res.get("speech_tips", [])
     
+    # 5. Generate Adaptive Follow-Up Question if substantive response (>=5 words)
+    follow_up_q = None
+    if len(sub.transcript.strip().split()) >= 5:
+        try:
+            follow_up_q = generate_adaptive_follow_up(
+                question_text=q_data["question"],
+                answer_text=sub.transcript,
+                jd_text=getattr(db_session, "jd_text", "") or "",
+                role=db_session.role_title
+            )
+        except Exception as fu_err:
+            logger.warning(f"Error generating follow-up: {fu_err}")
+
     # Save or update Answer in DB (idempotent per question_id)
     db_ans = db.query(DBAnswer).filter(
         DBAnswer.session_id == session_id,
@@ -240,6 +253,7 @@ def submit_answer(
         db_ans.overall_score = overall_q_score
         db_ans.feedback = llm_res["feedback"]
         db_ans.improvement_tips = json.dumps(combined_tips)
+        db_ans.follow_up_question = follow_up_q
     else:
         db_ans = DBAnswer(
             session_id=session_id,
@@ -255,7 +269,8 @@ def submit_answer(
             confidence_score=confidence,
             overall_score=overall_q_score,
             feedback=llm_res["feedback"],
-            improvement_tips=json.dumps(combined_tips)
+            improvement_tips=json.dumps(combined_tips),
+            follow_up_question=follow_up_q
         )
         db.add(db_ans)
     db.commit()
@@ -277,7 +292,8 @@ def submit_answer(
         overall_question_score=overall_q_score,
         feedback=llm_res["feedback"],
         improvement_tips=combined_tips,
-        model_answer=q_data.get("model_answer", "")
+        model_answer=q_data.get("model_answer", ""),
+        follow_up_question=follow_up_q
     )
 
 @router.get("/sessions/{session_id}/report", response_model=SessionReport)
@@ -340,7 +356,8 @@ def get_session_report(session_id: str, db: Session = Depends(get_db)):
             overall_question_score=a.overall_score,
             feedback=a.feedback,
             improvement_tips=tips,
-            model_answer=q_info.get("model_answer", "")
+            model_answer=q_info.get("model_answer", ""),
+            follow_up_question=getattr(a, "follow_up_question", None)
         )
         eval_list.append(q_eval)
         eval_dicts.append({

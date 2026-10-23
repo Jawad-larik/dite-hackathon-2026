@@ -12,6 +12,7 @@ interface KineticTypographyProps {
   onSpeak?: () => void;
   onStopSpeak?: () => void;
   isSpeaking?: boolean;
+  isFollowUp?: boolean;
   className?: string;
 }
 
@@ -33,6 +34,7 @@ export const KineticTypography: React.FC<KineticTypographyProps> = ({
   onSpeak,
   onStopSpeak,
   isSpeaking = false,
+  isFollowUp = false,
   className = '',
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -97,6 +99,11 @@ export const KineticTypography: React.FC<KineticTypographyProps> = ({
             <span className="font-mono text-xs font-semibold px-2.5 py-1 rounded-md bg-amber-subtle text-amber-signal border border-amber-500/30">
               Q{String(questionIndex).padStart(2, '0')}
               {totalQuestions ? ` / ${String(totalQuestions).padStart(2, '0')}` : ''}
+            </span>
+          )}
+          {isFollowUp && (
+            <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-md bg-cyan-subtle text-cyan-400 border border-cyan-500/40 animate-pulse">
+              Follow-up:
             </span>
           )}
           {category && (

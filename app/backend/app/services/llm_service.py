@@ -533,3 +533,110 @@ Output ONLY a JSON object with this EXACT structure (no markdown fences, no text
     print("[LLM Engine] Using Heuristic Question Synthesizer for JD")
     return _synthesize_heuristic_jd_questions(jd, resume, role, n)
 
+
+def generate_adaptive_follow_up(
+    question_text: str,
+    answer_text: str,
+    jd_text: str = "",
+    role: str = "Software Engineer"
+) -> Optional[str]:
+    """
+    Generates ONE adaptive follow-up question based on the candidate's last answer and the JD.
+    If the answer has fewer than 5 words, skips generation and returns None.
+    """
+    words = answer_text.strip().split()
+    if len(words) < 5:
+        return None
+
+    prompt = f"""You are an elite Technical Hiring Interviewer assessing a candidate for a {role} position.
+
+Target Job Description:
+\"\"\"{jd_text.strip() if jd_text and jd_text.strip() else "Standard technical requirements for " + role}\"\"\"
+
+Question Asked:
+\"{question_text}\"
+
+Candidate's Answer:
+\"{answer_text}\"
+
+Based on the candidate's specific answer and the JD requirements, generate exactly ONE concise, probing follow-up question (1-2 sentences) that challenges a technical trade-off, clarifies an architectural detail, or tests edge-case handling.
+
+Output ONLY a JSON object with this EXACT structure (no markdown fences, no text outside the JSON):
+{{
+  "follow_up_question": "<One concise, sharp follow-up question>"
+}}"""
+
+    # 1. Primary: Groq Cloud
+    groq_api_key = os.getenv("GROQ_API_KEY", "") or getattr(settings, "GROQ_API_KEY", "")
+    if groq_api_key:
+        try:
+            import groq
+            groq_model = os.getenv("GROQ_MODEL", "") or getattr(settings, "GROQ_MODEL", "qwen/qwen3.8-27b")
+            client = groq.Groq(api_key=groq_api_key)
+            completion = client.chat.completions.create(
+                model=groq_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a professional technical interviewer who outputs strictly valid JSON schemas."
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                max_tokens=250,
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+            raw_content = completion.choices[0].message.content.strip()
+            parsed = extract_json_object(raw_content)
+            q = parsed.get("follow_up_question", "").strip()
+            if q:
+                logger.info(f"Generated adaptive follow-up via Groq ({groq_model})")
+                print(f"[LLM Engine] Generated adaptive follow-up via Groq ({groq_model})")
+                return q
+        except Exception as groq_err:
+            logger.warning(f"Groq follow-up generation failed: {groq_err}. Trying OpenRouter fallback.")
+            print(f"[LLM Engine] Groq follow-up error ({groq_err}), trying OpenRouter fallback")
+
+    # 2. Fallback: OpenRouter
+    openrouter_key = os.getenv("OPENROUTER_API_KEY", "") or getattr(settings, "OPENROUTER_API_KEY", "")
+    if openrouter_key:
+        headers = {
+            "Authorization": f"Bearer {openrouter_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://localhost",
+            "X-Title": "AI-Based Interview Simulator"
+        }
+        payload = {
+            "model": getattr(settings, "OPENROUTER_MODEL", "cohere/north-mini-code:free"),
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a professional technical interviewer who outputs strictly valid JSON schemas."
+                },
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.3
+        }
+        try:
+            response = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=10
+            )
+            if response.status_code == 200:
+                raw_content = response.json()['choices'][0]['message']['content'].strip()
+                parsed = extract_json_object(raw_content)
+                q = parsed.get("follow_up_question", "").strip()
+                if q:
+                    logger.info("Generated adaptive follow-up via OpenRouter")
+                    print("[LLM Engine] Generated adaptive follow-up via OpenRouter")
+                    return q
+        except Exception as err:
+            logger.warning(f"OpenRouter follow-up generation error: {err}")
+            print(f"[LLM Engine] OpenRouter follow-up error ({err})")
+
+    # 3. Last Resort: Heuristic Follow-up
+    return "Could you elaborate on the failure recovery and monitoring strategy for that approach under unexpected production load?"
+
+
