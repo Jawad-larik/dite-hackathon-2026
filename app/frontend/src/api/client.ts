@@ -194,3 +194,43 @@ export async function endSession(sessionId: string): Promise<SessionReport> {
     return fetchSessionReport(sessionId);
   }
 }
+
+export async function extractPdfText(file: File): Promise<{ text: string }> {
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    throw new Error('Unsupported file type. Please upload a PDF document.');
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    throw new Error('Max 2 MB');
+  }
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') || localStorage.getItem('auth_token') : null;
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const res = await fetchWithTimeout(`${API_BASE}/extract`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  }, 25000);
+
+  if (res.status === 413) {
+    throw new Error('Max 2 MB');
+  }
+  if (res.status === 415) {
+    throw new Error('Unsupported media type. Only PDF files are accepted.');
+  }
+  if (res.status === 422) {
+    throw new Error('No text found in PDF');
+  }
+  if (!res.ok) {
+    const errorJson = await res.json().catch(() => ({ detail: 'Failed to extract text from PDF' }));
+    throw new Error(errorJson.detail || 'Failed to extract text from PDF');
+  }
+
+  return res.json();
+}

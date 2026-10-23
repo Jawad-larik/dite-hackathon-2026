@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import { Terminal, Layers, ShieldCheck, Cpu, Activity, FileText, Sparkles } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Terminal, Layers, ShieldCheck, Cpu, Activity, FileText, Sparkles, Upload, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { RoleDossierCard } from '../components/interview/RoleDossierCard';
 import { HardwareDiagnosticsConsole } from '../components/interview/HardwareDiagnosticsConsole';
 import { useSessionStore } from '../store/sessionStore';
+import { extractPdfText } from '../api/client';
 
 interface HomePageProps {
   onStartSession: (roleId: string, interviewType: string, language: string, jdText?: string, resumeText?: string) => void;
@@ -55,7 +56,70 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading })
   const [selectedRoleId, setSelectedRoleId] = useState<string>('software_engineer');
   const [jdText, setJdText] = useState<string>('');
   const [resumeText, setResumeText] = useState<string>('');
+
+  const jdFileInputRef = useRef<HTMLInputElement>(null);
+  const resumeFileInputRef = useRef<HTMLInputElement>(null);
+  const [jdUploading, setJdUploading] = useState<boolean>(false);
+  const [resumeUploading, setResumeUploading] = useState<boolean>(false);
+  const [jdStatus, setJdStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [resumeStatus, setResumeStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
   const { selectRole } = useSessionStore();
+
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: 'jd' | 'resume'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Reset input value so re-uploading the same file works
+    e.target.value = '';
+
+    const setStatus = target === 'jd' ? setJdStatus : setResumeStatus;
+    const setUploading = target === 'jd' ? setJdUploading : setResumeUploading;
+    const setText = target === 'jd' ? setJdText : setResumeText;
+
+    // 1. Client-side validation: PDF type & 2MB limit
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      setStatus({ type: 'error', message: 'Only PDF files are accepted.' });
+      setTimeout(() => {
+        setStatus((prev) => (prev?.type === 'error' && prev.message === 'Only PDF files are accepted.' ? null : prev));
+      }, 4000);
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      setStatus({ type: 'error', message: 'Max 2 MB' });
+      setTimeout(() => {
+        setStatus((prev) => (prev?.type === 'error' && prev.message === 'Max 2 MB' ? null : prev));
+      }, 4000);
+      return;
+    }
+
+    // 2. Perform extraction
+    setUploading(true);
+    setStatus(null);
+
+    try {
+      const res = await extractPdfText(file);
+      setText(res.text);
+      const successMsg = `Extracted (${res.text.length} chars)`;
+      setStatus({ type: 'success', message: successMsg });
+      setTimeout(() => {
+        setStatus((prev) => (prev?.type === 'success' && prev.message === successMsg ? null : prev));
+      }, 3000);
+    } catch (err: any) {
+      const errMsg = err?.message || 'Failed to extract PDF text';
+      setStatus({ type: 'error', message: errMsg });
+      setTimeout(() => {
+        setStatus((prev) => (prev?.type === 'error' && prev.message === errMsg ? null : prev));
+      }, 4000);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleSelectRole = (id: string) => {
     setSelectedRoleId(id);
@@ -151,34 +215,122 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading })
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* JD Input + Upload */}
                 <div className="space-y-1.5">
-                  <label htmlFor="jd-input" className="flex items-center gap-1.5 text-xs font-mono text-text-secondary">
-                    <FileText className="w-3.5 h-3.5 text-amber-signal" />
-                    <span>Target Job Description</span>
-                  </label>
+                  <div className="flex items-center justify-between gap-2">
+                    <label htmlFor="jd-input" className="flex items-center gap-1.5 text-xs font-mono text-text-secondary">
+                      <FileText className="w-3.5 h-3.5 text-amber-signal" />
+                      <span>Target Job Description</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => jdFileInputRef.current?.click()}
+                      disabled={jdUploading}
+                      className="inline-flex items-center gap-1 text-[11px] font-mono text-amber-signal hover:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2 py-0.5 rounded transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {jdUploading ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Extracting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3 h-3" />
+                          <span>Upload PDF (optional)</span>
+                        </>
+                      )}
+                    </button>
+                    <input
+                      ref={jdFileInputRef}
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e, 'jd')}
+                    />
+                  </div>
+
                   <textarea
                     id="jd-input"
                     rows={3}
                     value={jdText}
                     onChange={(e) => setJdText(e.target.value)}
-                    placeholder="Paste job requirements or key stack requirements here to generate tailored questions..."
+                    placeholder="Paste job requirements or upload PDF above to generate tailored questions..."
                     className="w-full text-xs font-mono bg-surface-ground/90 border border-border-subtle focus:border-amber-signal/60 rounded-xl p-3 text-text-primary placeholder:text-text-tertiary/60 outline-none transition-colors resize-none"
                   />
+
+                  {jdStatus && (
+                    <div
+                      className={`text-[11px] font-mono flex items-center gap-1.5 pt-0.5 transition-all ${
+                        jdStatus.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
+                      }`}
+                    >
+                      {jdStatus.type === 'success' ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      )}
+                      <span>{jdStatus.message}</span>
+                    </div>
+                  )}
                 </div>
 
+                {/* Resume Input + Upload */}
                 <div className="space-y-1.5">
-                  <label htmlFor="resume-input" className="flex items-center gap-1.5 text-xs font-mono text-text-secondary">
-                    <FileText className="w-3.5 h-3.5 text-mint-eval" />
-                    <span>Candidate Resume / Highlights</span>
-                  </label>
+                  <div className="flex items-center justify-between gap-2">
+                    <label htmlFor="resume-input" className="flex items-center gap-1.5 text-xs font-mono text-text-secondary">
+                      <FileText className="w-3.5 h-3.5 text-mint-eval" />
+                      <span>Candidate Resume / Highlights</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => resumeFileInputRef.current?.click()}
+                      disabled={resumeUploading}
+                      className="inline-flex items-center gap-1 text-[11px] font-mono text-mint-eval hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-2 py-0.5 rounded transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {resumeUploading ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          <span>Extracting...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-3 h-3" />
+                          <span>Upload PDF (optional)</span>
+                        </>
+                      )}
+                    </button>
+                    <input
+                      ref={resumeFileInputRef}
+                      type="file"
+                      accept=".pdf,application/pdf"
+                      className="hidden"
+                      onChange={(e) => handleFileUpload(e, 'resume')}
+                    />
+                  </div>
+
                   <textarea
                     id="resume-input"
                     rows={3}
                     value={resumeText}
                     onChange={(e) => setResumeText(e.target.value)}
-                    placeholder="Paste candidate background, past projects, or experience summary for tailored probing..."
+                    placeholder="Paste candidate background or upload PDF above for tailored probing..."
                     className="w-full text-xs font-mono bg-surface-ground/90 border border-border-subtle focus:border-mint-eval/60 rounded-xl p-3 text-text-primary placeholder:text-text-tertiary/60 outline-none transition-colors resize-none"
                   />
+
+                  {resumeStatus && (
+                    <div
+                      className={`text-[11px] font-mono flex items-center gap-1.5 pt-0.5 transition-all ${
+                        resumeStatus.type === 'success' ? 'text-emerald-400' : 'text-rose-400'
+                      }`}
+                    >
+                      {resumeStatus.type === 'success' ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+                      ) : (
+                        <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      )}
+                      <span>{resumeStatus.message}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
