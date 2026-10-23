@@ -225,7 +225,7 @@ export async function extractPdfText(file: File): Promise<{ text: string }> {
     throw new Error('Unsupported media type. Only PDF files are accepted.');
   }
   if (res.status === 422) {
-    throw new Error('No text found in PDF');
+    throw new Error('This PDF has no selectable text. Please paste the text manually.');
   }
   if (!res.ok) {
     const errorJson = await res.json().catch(() => ({ detail: 'Failed to extract text from PDF' }));

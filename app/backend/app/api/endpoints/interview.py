@@ -572,7 +572,7 @@ async def extract_pdf_text(
     if not extracted_text:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="No text found in PDF"
+            detail="This PDF has no selectable text. Please paste the text manually."
         )
 
     return {"text": extracted_text[:20000]}

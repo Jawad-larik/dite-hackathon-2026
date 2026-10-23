@@ -248,6 +248,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading })
                       onChange={(e) => handleFileUpload(e, 'jd')}
                     />
                   </div>
+                  <p className="text-[10px] font-mono text-text-tertiary">Text-based PDFs only. Image scans won't work.</p>
 
                   <textarea
                     id="jd-input"
@@ -307,6 +308,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onStartSession, isLoading })
                       onChange={(e) => handleFileUpload(e, 'resume')}
                     />
                   </div>
+                  <p className="text-[10px] font-mono text-text-tertiary">Text-based PDFs only. Image scans won't work.</p>
 
                   <textarea
                     id="resume-input"
