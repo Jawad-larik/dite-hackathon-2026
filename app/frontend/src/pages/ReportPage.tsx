@@ -572,6 +572,14 @@ export const ReportPage: React.FC<ReportPageProps> = ({ sessionId = 'sess-sim-ex
                           </span>
                           <span>•</span>
                           <span>{qResult.confidence_score || 88}% COMPOSURE</span>
+                          {qResult.follow_up_question && (
+                            <>
+                              <span>•</span>
+                              <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-semibold text-[10px]">
+                                Follow-up asked
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -624,6 +632,21 @@ export const ReportPage: React.FC<ReportPageProps> = ({ sessionId = 'sess-sim-ex
                           </span>
                         </div>
                       </div>
+
+                      {/* Adaptive Follow-up Lineage Card */}
+                      {qResult.follow_up_question && (
+                        <div className="p-4 rounded-xl bg-cyan-950/20 border border-cyan-500/30 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                            <span className="font-mono text-[10px] uppercase tracking-wider text-cyan-400 font-semibold">
+                              Adaptive Follow-Up Asked
+                            </span>
+                          </div>
+                          <p className="font-body text-xs text-text-primary leading-relaxed italic">
+                            &ldquo;{qResult.follow_up_question}&rdquo;
+                          </p>
+                        </div>
+                      )}
 
                       {/* Verbatim Spoken Transcript */}
                       <div className="p-4 rounded-xl bg-surface-card border border-border-subtle">
